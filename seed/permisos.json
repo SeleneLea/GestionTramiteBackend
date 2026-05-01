@@ -1,0 +1,13 @@
+[
+  { "codigo": "VER_REPORTES",            "modulo": "reportes", "descripcion": "Ver reportes del sistema" },
+  { "codigo": "EXPORTAR_REPORTES",       "modulo": "reportes", "descripcion": "Exportar reportes" },
+  { "codigo": "CONSULTAR_MIS_TRAMITES",  "modulo": "tramites", "descripcion": "Ver los propios tramites" },
+  { "codigo": "INICIAR_TRAMITE",         "modulo": "tramites", "descripcion": "Iniciar un nuevo tramite" },
+  { "codigo": "COMPLETAR_NODO",          "modulo": "tramites", "descripcion": "Completar nodo de workflow" },
+  { "codigo": "VER_TODOS_TRAMITES",      "modulo": "tramites", "descripcion": "Ver todos los tramites" },
+  { "codigo": "GESTIONAR_USUARIOS",      "modulo": "usuarios", "descripcion": "CRUD de usuarios" },
+  { "codigo": "GESTIONAR_DEPARTAMENTOS", "modulo": "config",   "descripcion": "CRUD de departamentos" },
+  { "codigo": "GESTIONAR_POLITICAS",     "modulo": "config",   "descripcion": "CRUD de politicas de negocio" },
+  { "codigo": "GESTIONAR_DIAGRAMAS",     "modulo": "workflow", "descripcion": "CRUD de diagramas de workflow" },
+  { "codigo": "GESTIONAR_ROLES",         "modulo": "config",   "descripcion": "CRUD de roles y permisos" }
+]

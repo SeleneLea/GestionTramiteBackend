@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: tramites-backend
+
+  data:
+    mongodb:
+      uri: mongodb://admin:12345678@localhost:27017/tramites_db?authSource=admin
+      auto-index-creation: true
+
+server:
+  port: 8080
+
+app:
+  jwt:
+    secret: "clave-ultra-secreta-para-firmar-tokens-cambiar-en-produccion-minimo-256-bits"
+    expiration-ms: 86400000
+    issuer: "tramites-backend"
+
+logging:
+  level:
+    org.springframework.data.mongodb: DEBUG
+    org.springframework.data.mongodb.core.MongoTemplate: DEBUG
+    com.example.demo: DEBUG

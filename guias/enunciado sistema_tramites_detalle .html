@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Gestión de Trámites — Detalle Completo</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #1a1a1a; background: #f5f5f5; padding: 24px; }
+  .page { max-width: 900px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+
+  h1 { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 28px; border-bottom: 1.5px solid #e0e0e0; padding-bottom: 16px; }
+
+  .section { margin-bottom: 28px; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+  .section-header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: #f8f8f8; border-bottom: 1px solid #e0e0e0; }
+  .num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; color: white; }
+  .section-title { font-size: 15px; font-weight: 700; }
+  .section-body { padding: 16px 18px; }
+
+  .sub { font-size: 12px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.5px; margin: 14px 0 8px; }
+  .sub:first-child { margin-top: 0; }
+
+  ul { list-style: none; padding: 0; }
+  ul li { display: flex; gap: 8px; margin-bottom: 7px; font-size: 13px; line-height: 1.6; }
+  ul li::before { content: "•"; color: #999; flex-shrink: 0; margin-top: 1px; }
+
+  .pill { display: inline-block; font-size: 11px; padding: 2px 9px; border-radius: 12px; margin: 2px 3px 2px 0; font-weight: 600; }
+  .pill-p { background: #eeedfe; color: #3c3489; }
+  .pill-t { background: #e1f5ee; color: #085041; }
+  .pill-a { background: #faeeda; color: #633806; }
+  .pill-c { background: #faece7; color: #712b13; }
+  .pill-b { background: #e6f1fb; color: #0c447c; }
+  .pill-g { background: #eaf3de; color: #27500a; }
+  .pill-k { background: #fbeaf0; color: #72243e; }
+  .pill-r { background: #fcebeb; color: #791f1f; }
+
+  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+  .fbox { font-size: 12px; padding: 4px 10px; border: 1px solid #d0d0d0; border-radius: 5px; background: #fafafa; color: #333; }
+  .farrow { color: #aaa; font-size: 14px; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+  .role-card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px 14px; }
+  .role-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+
+  .tip { background: #fff8e6; border-left: 3px solid #f0a500; padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 12px; color: #7a4f00; margin-top: 12px; }
+  .warning { background: #fff2f2; border-left: 3px solid #e24b4a; padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 12px; color: #7a1f1f; margin-top: 12px; }
+  .info { background: #e6f1fb; border-left: 3px solid #378add; padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 12px; color: #0c447c; margin-top: 12px; }
+
+  hr { border: none; border-top: 1px solid #ebebeb; margin: 12px 0; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+  th { background: #f0f0f0; padding: 7px 10px; text-align: left; font-weight: 700; border: 1px solid #ddd; }
+  td { padding: 7px 10px; border: 1px solid #ddd; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+
+  .deadline { background: #faeeda; border: 1px solid #f0c070; border-radius: 6px; padding: 12px 16px; margin-bottom: 24px; font-size: 13px; color: #7a4f00; font-weight: 600; }
+
+  @media print {
+    body { background: white; padding: 0; }
+    .page { box-shadow: none; padding: 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Sistema de Gestión de Trámites — Punto 1 Detallado</h1>
+  <p class="subtitle">Primer Examen Parcial · Ingeniería de Software · Motor Workflow + UML 2.5</p>
+
+  <div class="deadline">⏰ Entrega PDF Moodle: 29 de abril hasta las 8:00 AM &nbsp;|&nbsp; Presentación: 28 de abril &nbsp;|&nbsp; Duración: 20 minutos</div>
+
+  <!-- 1. DESCRIPCIÓN GENERAL -->
+  <div class="section">
+    <div class="section-header">
+      <div class="num" style="background:#7F77DD">1</div>
+      <span class="section-title">Descripción general del sistema</span>
+    </div>
+    <div class="section-body">
+      <ul>
+        <li>Sistema web + móvil para la <strong>gestión de trámites de principio a fin</strong>, inspirado en empresas de servicios como CRE (Comisión de Regulación de Energía).</li>
+        <li>Un usuario puede solicitar diferentes tipos de trámites. El sistema los encamina automáticamente por los departamentos correspondientes hasta su resolución.</li>
+        <li>El comportamiento es similar a un <strong>workflow (flujo de trabajo)</strong>: cada trámite sigue un proceso definido por políticas de negocio configurables.</li>
+        <li>El sistema es <strong>completamente flexible y adaptable</strong>: no tiene flujos predefinidos. Cada organización crea sus propias políticas y flujos desde cero.</li>
+        <li>Canales de acceso: <strong>app móvil Flutter (cliente final)</strong> para seguimiento de trámites y notificaciones push, y <strong>plataforma web Angular (administradores y funcionarios)</strong> para gestión, diseño de flujos y ejecución.</li>
+      </ul>
+      <div class="tip">Analogía clave para la presentación: el sistema funciona como una "fábrica de trámites" donde cada producto (trámite) recorre una línea de ensamblaje (workflow) diferente según su tipo.</div>
+    </div>
+  </div>
+
+  <!-- 2. MOTOR DE WORKFLOW -->
+  <div class="section">
+    <div class="section-header">
+      <div class="num" style="background:#534AB7">2</div>
+      <span class="section-title">Motor de Workflow — Núcleo del sistema</span>
+    </div>
+    <div class="section-body">
+      <p style="margin-bottom:12px;font-size:13px;color:#444">El motor de workflow es la pieza central. Interpreta y ejecuta <strong>diagramas de actividad UML 2.5 con swimlanes (calles)</strong>. Cada calle representa un departamento o actor del proceso.</p>
+
+      <div class="sub">Elementos del motor</div>
+      <table>
+        <tr><th>Elemento</th><th>Descripción</th><th>Ejemplo en CRE</th></tr>
+        <tr><td><span class="pill pill-p">Actividad</span></td><td>Tarea concreta que realiza un actor dentro de una calle</td><td>"Revisar documentos del cliente"</td></tr>
+        <tr><td><span class="pill pill-p">Flujo</span></td><td>Conexión entre actividades que indica el orden de ejecución</td><td>Flecha de "Atención al cliente" → "Área técnica"</td></tr>
+        <tr><td><span class="pill pill-p">Estado</span></td><td>Condición actual del trámite en el proceso</td><td>Pendiente / En proceso / Aprobado / Rechazado</td></tr>
+        <tr><td><span class="pill pill-p">Transición</span></td><td>Cambio de estado disparado por completar una actividad</td><td>Al aprobar el área técnica → pasa a legal</td></tr>
+        <tr><td><span class="pill pill-p">Fork / Join</span></td><td>Separación y unión de flujos para paralelismo</td><td>Inspección técnica + papeleo corren al mismo tiempo</td></tr>
+        <tr><td><span class="pill pill-p">Decision node</span></td><td>Punto de ramificación condicional</td><td>¿Documentación completa? Sí → continúa / No → devuelve</td></tr>
+      </table>
+
+      <div class="sub">Tipos de flujo soportados</div>
+      <div class="flow"><span class="fbox">Lineal / secuencial</span><span class="farrow">→</span><span style="font-size:12px;color:#666">Actividades en orden fijo: A → B → C → D</span></div>
+      <div class="flow"><span class="fbox">Condicional / alternativo</span><span class="farrow">→</span><span style="font-size:12px;color:#666">Según condición, el flujo toma un camino u otro (decision node)</span></div>
+      <div class="flow"><span class="fbox">Iterativo (ida y vuelta)</span><span class="farrow">→</span><span style="font-size:12px;color:#666">Permite regresar a pasos anteriores (ej: observaciones que vuelven a revisión)</span></div>
+      <div class="flow"><span class="fbox">Paralelo</span><span class="farrow">→</span><span style="font-size:12px;color:#666">Fork → actividades simultáneas → Join (se espera que todas terminen)</span></div>
+
+      <div class="warning">Punto crítico para el examen: el diagrama de actividad con swimlanes es el modelo central que debes presentar. Debe estar elaborado en herramienta CASE (Enterprise Architect) con notación UML 2.5 correcta.</div>
+    </div>
+  </div>
+
+  <!-- 3. EXPEDIENTE ÚNICO POR SECCIONES -->
+  <div class="section">
+    <div class="section-header">
+      <div class="num" style="background:#D85A30">3</div>
+      <span class="section-title">Expediente digital único por trámite — Secciones por nodo</span>
+    </div>
+    <div class="section-body">
+      <p style="margin-bottom:12px;font-size:13px;color:#444">Cada trámite tiene un <strong>único expediente digital</strong> que se va completando por secciones conforme avanza por los departamentos. Cada nodo/departamento tiene su propia sección dentro de ese expediente.</p>
+
+      <div class="sub">Estructura del expediente</div>
+      <table>
+        <tr><th>Sección</th><th>Departamento</th><th>Estado</th><th>Quién puede editar</th></tr>
+        <tr><td>Sección 1</td><td>Atención al cliente</td><td><span class="pill pill-g">✅ Completado</span></td><td>Bloqueada — solo lectura para todos</td></tr>
+        <tr><td>Sección 2</td><td>Área técnica</td><td><span class="pill pill-b">✍️ En curso</span></td><td>Solo el funcionario del nodo activo</td></tr>
+        <tr><td>Sección 3</td><td>Área legal</td><td><span class="pill pill-a">🔒 Pendiente</span></td><td>Bloqueada hasta que llegue el turno</td></tr>
+        <tr><td>Sección 4</td><td>Aprobación final</td><td><span class="pill pill-a">🔒 Pendiente</span></td><td>Bloqueada hasta que llegue el turno</td></tr>
+      </table>
+
+      <div class="sub">Comportamiento clave</div>
+      <ul>
+        <li>El administrador diseña el formulario de <strong>cada sección</strong> al construir el flujo: define qué campos tendrá cada departamento en el expediente.</li>
+        <li>Cuando el trámite llega a un nodo, el funcionario ve el expediente completo pero <strong>solo puede editar su sección activa</strong>. Las secciones anteriores quedan visibles como referencia (contexto) pero bloqueadas.</li>
+        <li>Funcionalidad de <strong>voz a sección</strong> (IA): el funcionario dicta por voz y la IA transcribe rellenando los campos de <strong>su sección activa</strong> únicamente. Luego puede editar manualmente.</li>
+        <li>Los campos pueden ser: texto libre, selección, fecha, adjuntos (documentos, imágenes) y campos calculados.</li>
+        <li>Al completar y guardar su sección, el motor avanza el trámite automáticamente al siguiente nodo.</li>
+      </ul>
+
+      <div class="sub">Ventajas del expediente único</div>
+      <ul>
+        <li>El funcionario de área técnica puede ver lo que registró atención al cliente antes, dándole <strong>contexto completo</strong> sin abrir otros módulos.</li>
+        <li>El administrador ve un <strong>solo documento cohesionado</strong> por trámite, no múltiples informes sueltos.</li>
+        <li>La trazabilidad es natural: un expediente = un trámite, con todas las secciones, sus timestamps y sus autores.</li>
+      </ul>
+      <div class="tip">Ejemplo CRE — Trámite "Nueva conexión": Sección 1 (Atención al cliente): datos del solicitante y documentos. Sección 2 (Técnica): resultado de inspección + fotos. Sección 3 (Legal): validación del contrato. Sección 4 (Operaciones): fecha de ejecución y cierre.</div>
+    </div>
+  </div>
+
+  <!-- 4. ROLES -->
+  <div class="section">
+    <div class="section-header">
+      <div class="num" style="background:#BA7517">4</div>
+      <span class="section-title">Roles del sistema</span>
+    </div>
+    <div class="section-body">
+      <div class="grid2">
+        <div class="role-card">
+          <div class="role-title" style="color:#0c447c">Administrador</div>
+          <ul>
+            <li>Registra departamentos y actividades.</li>
+            <li>Diseña los flujos de trabajo (swimlane diagrams) mediante interfaz visual o prompts con IA.</li>
+            <li>Define políticas de negocio: cada política es un flujo completo diferente.</li>
+            <li>Configura formularios para cada nodo del flujo.</li>
+            <li>Configura reglas de notificación y tiempos límite por actividad.</li>
+            <li>Accede a dashboards de monitoreo y reportes de cuellos de botella.</li>
+          </ul>
+        </div>
+        <div class="role-card">
+          <div class="role-title" style="color:#085041">Funcionario</div>
+          <ul>
+            <li>Recibe una solicitud y selecciona la política de negocio aplicable.</li>
+            <li>El sistema dirige el trámite automáticamente por el flujo definido.</li>
+            <li>Solo ejecuta las actividades que le corresponden según su calle (departamento).</li>
+            <li>Completa el formulario de cada nodo (por voz o manualmente) desde la <strong>plataforma web</strong>.</li>
+            <li>No puede crear actividades ni modificar flujos.</li>
+            <li>Recibe notificaciones en la plataforma web cuando un trámite llega a su área.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. AUTOMATIZACIÓN Y ESTADOS -->
+  <div class="section">
+    <div class="section-header">
+      <div class="num" style="background:#1D9E75">5</div>
+      <span class="section-title">Automatización de estados y ciclo de vida</span>
+    </div>
+    <div class="section-body">
+      <div class="sub">Estados del trámite</div>
+      <p style="font-size:13px;margin-bottom:10px">
+        <span class="pill pill-a">Nuevo</span>
+        <span class="pill pill-b">En proceso</span>
+        <span class="pill pill-p">Derivado</span>
+        <span class="pill pill-a">Observado</span>
+        <span class="pill pill-r">Rechazado</span>
+        <span class="pill pill-g">Aprobado / Cerrado</span>
+      </p>
+      <ul>
+        <li>Los estados se actualizan <strong>automáticamente</strong> al completar cada actividad: no requiere intervención manual del administrador.</li>
+        <li>Al completar el formulario de un nodo, el motor evalúa el siguiente paso según el flujo definido y deriva el trámite automáticamente.</li>
+        <li>Si hay un decision node, el motor evalúa la condición y toma el camino correcto.</li>
+        <li>Si el flujo es paralelo, el motor espera que todos los nodos del join estén completos antes de continuar.</li>
+        <li>Si hay un flujo iterativo (observación), el motor retrocede el trámite al nodo indicado.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 6. MÓDULO DE IA -->
+  <div class="section">
+    <div class="section-header">
+      <div class="num" style="background:#378ADD">6</div>
+      <span class="section-title">Módulo de IA (FastAPI + Python)</span>
+    </div>
+    <div class="section-body">
+      <table>
+        <tr><th>Funcionalidad</th><th>Descripción</th><th>Quién la usa</th></tr>
+        <tr><td><strong>Creación de flujos por prompt</strong></td><td>El administrador describe el proceso en texto y la IA genera el diagrama de actividad automáticamente.</td><td>Administrador</td></tr>
+        <tr><td><strong>Voz a sección del expediente</strong></td><td>El funcionario dicta por voz; la IA transcribe y rellena los campos de <strong>su sección activa</strong> en el expediente del trámite. No toca las secciones de otros departamentos. El funcionario puede editar antes de guardar.</td><td>Funcionario</td></tr>
+        <tr><td><strong>Análisis de cuellos de botella</strong></td><td>Analiza tiempos históricos por actividad y departamento. Identifica automáticamente dónde se acumulan los trámites.</td><td>Administrador</td></tr>
+        <tr><td><strong>Consulta del cliente (app móvil)</strong></td><td>El cliente consulta el estado y la línea de tiempo de su trámite desde la app Flutter. Ve en qué departamento está, cuánto lleva y qué falta.</td><td>Cliente (móvil Flutter)</td></tr>
+        <tr><td><strong>Agente de asistencia (CU-31)</strong></td><td>Agente conversacional contextual que detecta en tiempo real en qué módulo está el usuario y responde preguntas, guía acciones y sugiere pasos. Implementado con n8n + RAG sobre la documentación real del sistema. Disponible como panel flotante en todas las pantallas. (Parte 3 del documento)</td><td>Todos los usuarios</td></tr>
+      </table>
+      <div class="info">La IA es una herramienta de apoyo, no el núcleo. El profesor evaluará que el software es un resultado de ingeniería, no simplemente IA generando código. Deben poder demostrar y modificar cualquier parte en vivo.</div>
+    </div>
+  </div>
+
+  <!-- 7. MONITOREO Y NOTIFICACIONES -->
+  <div class="section">
+    <div class="section-header">
+      <div class="num" style="background:#639922">7</div>
+      <span class="section-title">Monitoreo, notificaciones y colaboración</span>
+    </div>
+    <div class="section-body">
+      <div class="sub">Monitoreo</div>
+      <ul>
+        <li>Dashboard con métricas en tiempo real: trámites activos, pausados, completados por período.</li>
+        <li>Tiempo promedio de atención por actividad, por departamento y por política de negocio.</li>
+        <li>Detección automática de cuellos de botella: actividades que superan el tiempo límite configurado.</li>
+        <li>Identificación de los departamentos con mayor carga de trabajo en un período.</li>
+      </ul>
+      <hr>
+      <div class="sub">Notificaciones push (app móvil Flutter — solo cliente final)</div>
+      <ul>
+        <li>Notificación push al <strong>cliente</strong> cuando su trámite cambia de estado (Aprobado, Rechazado, Observado, etc.).</li>
+        <li>Alerta push cuando el sistema requiere una acción del cliente (ej. subsanar documentos).</li>
+        <li>Notificaciones internas en la <strong>plataforma web</strong> para funcionarios cuando un trámite llega a su área.</li>
+        <li>Alerta web al funcionario si un trámite asignado supera el tiempo límite definido en la política.</li>
+      </ul>
+      <hr>
+      <div class="sub">Diseño colaborativo de diagramas (online)</div>
+      <ul>
+        <li>El <strong>administrador es quien crea el diagrama</strong> y tiene control total sobre el diseño del workflow.</li>
+        <li>El administrador puede <strong>enviar una solicitud de colaboración</strong> a otros administradores o funcionarios para que participen en el diseño del diagrama.</li>
+        <li>Los colaboradores invitados pueden editar, sugerir cambios o agregar nodos en tiempo real sobre el mismo lienzo, similar a un editor online colaborativo (tipo Figma o Google Docs).</li>
+        <li>Historial de versiones del diagrama: quién modificó qué nodo y cuándo.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 8. EJEMPLO REAL -->
+  <div class="section">
+    <div class="section-header">
+      <div class="num" style="background:#D4537E">8</div>
+      <span class="section-title">Ejemplo de flujo real — Solicitud de nueva conexión eléctrica (CRE)</span>
+    </div>
+    <div class="section-body">
+      <div class="sub">Política de negocio: "Nueva conexión residencial"</div>
+      <div class="flow" style="margin-bottom:16px">
+        <span class="fbox" style="background:#f0f0f0;font-weight:600">Cliente</span>
+        <span class="farrow">→</span>
+        <span class="fbox">Solicita conexión</span>
+        <span class="farrow">→</span>
+        <span class="fbox" style="background:#e6f1fb">Atención al cliente</span>
+        <span class="farrow">→</span>
+        <span class="fbox">Verifica documentos</span>
+      </div>
+      <div class="flow" style="margin-bottom:16px">
+        <span class="fbox" style="background:#e1f5ee">Área técnica</span>
+        <span class="farrow">→</span>
+        <span class="fbox">Inspección en campo</span>
+        <span class="farrow">//</span>
+        <span class="fbox">Presupuesto</span>
+        <span class="farrow">→</span>
+        <span class="fbox">Join: ambas OK</span>
+      </div>
+      <div class="flow" style="margin-bottom:8px">
+        <span class="fbox" style="background:#faeeda">Área legal</span>
+        <span class="farrow">→</span>
+        <span class="fbox">Revisar contrato</span>
+        <span class="farrow">→</span>
+        <span class="fbox">¿Aprueba?</span>
+        <span class="farrow">Sí→</span>
+        <span class="fbox" style="background:#eaf3de">Cierre y conexión</span>
+        <span class="farrow">No→</span>
+        <span class="fbox">Vuelve a técnica</span>
+      </div>
+      <hr>
+      <table>
+        <tr><th>Calle (swimlane)</th><th>Actor / Departamento</th><th>Sección en el expediente</th><th>Tipo de flujo</th></tr>
+        <tr><td>Calle 1</td><td>Atención al cliente</td><td>Sección 1: datos del solicitante, documentos adjuntos, verificación</td><td>Lineal</td></tr>
+        <tr><td>Calle 2</td><td>Área técnica</td><td>Sección 2a: resultado inspección + fotos / Sección 2b: presupuesto (paralelas)</td><td>Paralelo</td></tr>
+        <tr><td>Calle 3</td><td>Área legal</td><td>Sección 3: validación de contrato; puede devolver con observaciones</td><td>Condicional + Iterativo</td></tr>
+        <tr><td>Calle 4</td><td>Operaciones</td><td>Sección 4: fecha de ejecución, cierre y firma</td><td>Lineal</td></tr>
+      </table>
+      <div class="tip">Este ejemplo es lo que debes mostrar el día del examen: el diagrama de actividad UML 2.5 de este flujo en Enterprise Architect, y el sistema ejecutándolo en vivo (el trámite moviéndose entre calles automáticamente).</div>
+    </div>
+  </div>
+
+  <!-- 9. CONFIGURACIÓN DEL SISTEMA -->
+  <div class="section">
+    <div class="section-header">
+      <div class="num" style="background:#5F5E5A">9</div>
+      <span class="section-title">Gestión de configuración</span>
+    </div>
+    <div class="section-body">
+      <ul>
+        <li>El administrador registra: <span class="pill pill-k">Departamentos</span><span class="pill pill-k">Actividades</span><span class="pill pill-k">Usuarios</span><span class="pill pill-k">Políticas de negocio</span></li>
+        <li>Una organización puede tener <strong>múltiples políticas de negocio</strong>, cada una con su propio flujo completamente diferente.</li>
+        <li>No hay flujos predefinidos: todo se crea desde cero por el administrador, lo que hace el sistema <strong>100% flexible</strong>.</li>
+        <li>Un flujo puede reutilizar actividades ya definidas en otros flujos (principio de componentes reutilizables).</li>
+        <li>Los flujos se diseñan mediante: (a) interfaz visual drag-and-drop de swimlanes colaborativa (online), o (b) descripción en texto procesada por IA.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 10. CU-31 AGENTE DE ASISTENCIA -->
+  <div class="section">
+    <div class="section-header">
+      <div class="num" style="background:#D4537E">10</div>
+      <span class="section-title">CU-31 — Interactuar con el agente de asistencia (Parte 3)</span>
+    </div>
+    <div class="section-body">
+      <p style="font-size:13px;color:#444;margin-bottom:14px">Mecanismo principal para que cualquier usuario aprenda a usar el sistema con el menor esfuerzo posible. El agente detecta automáticamente el contexto del usuario y responde de forma específica a lo que está haciendo en ese momento.</p>
+
+      <div class="sub">Ficha del caso de uso</div>
+      <table>
+        <tr><th style="width:22%">Campo</th><th>Detalle</th></tr>
+        <tr><td><strong>Ciclo</strong></td><td>Ciclo 3</td></tr>
+        <tr><td><strong>Actores</strong></td><td>Cliente (app Flutter) · Funcionario (web) · Administrador (web)</td></tr>
+        <tr><td><strong>Propósito</strong></td><td>Proporcionar un agente conversacional inteligente que detecte en tiempo real qué está haciendo el usuario dentro de la plataforma y responda preguntas, guíe acciones y sugiera los siguientes pasos de forma contextual, reduciendo al mínimo el tiempo de aprendizaje sin necesidad de consultar manuales.</td></tr>
+        <tr><td><strong>Implementación</strong></td><td>n8n + RAG (Retrieval Augmented Generation) sobre la documentación real del sistema. El agente no usa conocimiento genérico de IA, sino los flujos configurados, políticas activas y CU definidos del propio proyecto.</td></tr>
+        <tr><td><strong>Disponibilidad</strong></td><td>Panel flotante accesible desde cualquier pantalla del sistema (web y móvil).</td></tr>
+      </table>
+
+      <div class="sub">Precondiciones</div>
+      <ul>
+        <li>El usuario debe estar autenticado en el sistema.</li>
+        <li>El microservicio del agente (FastAPI) debe estar activo y conectado.</li>
+        <li>El agente debe tener acceso al contexto de navegación actual: módulo activo, rol del usuario, trámite en curso si aplica, y acciones ejecutadas recientemente.</li>
+      </ul>
+
+      <div class="sub">Flujo principal</div>
+      <table>
+        <tr><th style="width:6%">Paso</th><th>Acción</th></tr>
+        <tr><td>1</td><td>El usuario abre el panel del agente (ícono flotante disponible en todas las pantallas).</td></tr>
+        <tr><td>2</td><td>El agente detecta automáticamente el contexto: módulo activo, rol, trámite en curso si aplica.</td></tr>
+        <tr><td>3</td><td>El agente muestra un saludo contextual. Ej: <em>"Estás en diseño de flujos. ¿Necesitas ayuda para agregar un nodo de decisión?"</em></td></tr>
+        <tr><td>4</td><td>El usuario escribe o dicta su consulta en lenguaje natural.</td></tr>
+        <tr><td>5</td><td>El agente envía la consulta + contexto de navegación al microservicio FastAPI.</td></tr>
+        <tr><td>6</td><td>El microservicio consulta la base de conocimiento (documentación, políticas activas, estado del trámite) y genera la respuesta.</td></tr>
+        <tr><td>7</td><td>El agente muestra la respuesta y, si aplica, un botón de acción directa. Ej: <em>"Ir a ese módulo"</em>, <em>"Completar este campo"</em>.</td></tr>
+        <tr><td>8</td><td>El usuario puede continuar la conversación con preguntas de seguimiento.</td></tr>
+        <tr><td>9</td><td>El sistema registra la interacción en el log para mejorar respuestas futuras.</td></tr>
+      </table>
+
+      <div class="sub">Excepciones</div>
+      <ul>
+        <li><strong>Consulta fuera de alcance:</strong> Si la pregunta no tiene relación con el sistema, el agente responde que solo asiste con funcionalidades de la plataforma.</li>
+        <li><strong>Microservicio caído:</strong> Muestra "Asistente no disponible temporalmente" y ofrece el enlace al manual de usuario como alternativa.</li>
+        <li><strong>Contexto no disponible:</strong> Si no puede determinar la pantalla actual del usuario, responde de forma genérica pero funcional.</li>
+        <li><strong>Rol incorrecto:</strong> Si un funcionario pregunta por funcionalidades de administrador, el agente informa que esa función es exclusiva del rol administrador.</li>
+      </ul>
+
+      <div class="sub">Post condiciones</div>
+      <ul>
+        <li>El usuario recibe orientación suficiente para completar su tarea sin abandonar la plataforma.</li>
+        <li>No se modifica ningún dato del sistema — es operación de solo lectura sobre el contexto.</li>
+        <li>La interacción queda registrada en el log del agente.</li>
+      </ul>
+
+      <div class="tip">Lo que diferencia este agente de un chatbot genérico: (1) detecta el contexto automáticamente sin que el usuario explique dónde está, (2) responde basado en la documentación real del sistema, no en conocimiento general de IA, y (3) ofrece botones de acción directa para que el usuario no tenga que navegar solo.</div>
+    </div>
+  </div>
+
+  <div style="margin-top:28px;padding-top:16px;border-top:1.5px solid #e0e0e0;font-size:11px;color:#999;text-align:center">
+    Primer Examen Parcial — Sistema de Gestión de Trámites · Luis David Guzmán Rojas · Ingeniería de Software
+  </div>
+
+</div>
+</body>
+</html>

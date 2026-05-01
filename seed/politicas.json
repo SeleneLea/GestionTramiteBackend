@@ -1,0 +1,23 @@
+[
+  {
+    "nombre": "Nueva conexion residencial",
+    "descripcion": "Proceso de solicitud de nueva conexion electrica residencial",
+    "categoria": "conexiones",
+    "estado": "activa",
+    "versionActual": 1
+  },
+  {
+    "nombre": "Reconexion por mora",
+    "descripcion": "Proceso de reconexion del servicio electrico tras pago de deuda",
+    "categoria": "reconexiones",
+    "estado": "activa",
+    "versionActual": 1
+  },
+  {
+    "nombre": "Cambio de titular",
+    "descripcion": "Proceso administrativo para transferir la titularidad de un contrato de servicio",
+    "categoria": "administrativo",
+    "estado": "borrador",
+    "versionActual": 1
+  }
+]

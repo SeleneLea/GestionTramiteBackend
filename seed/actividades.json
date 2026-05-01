@@ -1,0 +1,14 @@
+[
+  { "nombre": "Recepción y validación de solicitud", "departamentoCodigo": "ATC", "slaHoras": 4,  "salidasPosibles": ["derivar", "observar"], "reutilizable": true },
+  { "nombre": "Verificación de documentos del cliente", "departamentoCodigo": "ATC", "slaHoras": 8,  "salidasPosibles": ["derivar", "observar"], "reutilizable": true },
+  { "nombre": "Evaluación de capacidad financiera", "departamentoCodigo": "ATC", "slaHoras": 12, "salidasPosibles": ["derivar", "rechazar", "observar"], "reutilizable": true },
+  { "nombre": "Inspección técnica en campo", "departamentoCodigo": "TEC", "slaHoras": 16, "salidasPosibles": ["completar", "observar"], "reutilizable": true },
+  { "nombre": "Elaboración de presupuesto técnico", "departamentoCodigo": "TEC", "slaHoras": 8,  "salidasPosibles": ["completar"], "reutilizable": true },
+  { "nombre": "Revisión y aprobación del contrato", "departamentoCodigo": "LEG", "slaHoras": 24, "salidasPosibles": ["aprobar", "rechazar", "observar"], "reutilizable": true },
+  { "nombre": "Verificación de antecedentes y referencias", "departamentoCodigo": "ATC", "slaHoras": 6,  "salidasPosibles": ["derivar", "rechazar"], "reutilizable": true },
+  { "nombre": "Confirmación de autorizaciones y consentimientos", "departamentoCodigo": "LEG", "slaHoras": 4,  "salidasPosibles": ["aprobar", "observar"], "reutilizable": true },
+  { "nombre": "Ejecución de trabajos técnicos", "departamentoCodigo": "OPE", "slaHoras": 48, "salidasPosibles": ["completar"], "reutilizable": true },
+  { "nombre": "Inspección y validación de trabajos realizados", "departamentoCodigo": "TEC", "slaHoras": 8,  "salidasPosibles": ["completar", "observar"], "reutilizable": true },
+  { "nombre": "Cierre del trámite y generación de documentación final", "departamentoCodigo": "ATC", "slaHoras": 4,  "salidasPosibles": ["completar"], "reutilizable": true },
+  { "nombre": "Notificación formal de resolución al cliente", "departamentoCodigo": "ATC", "slaHoras": 2,  "salidasPosibles": ["completar"], "reutilizable": true }
+]

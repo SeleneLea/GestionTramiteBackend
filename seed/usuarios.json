@@ -1,0 +1,11 @@
+[
+  { "nombre": "Admin",  "apellido": "Sistema",   "email": "admin@cre.bo",        "passwordPlano": "admin12345",   "tipo": "administrador", "rol": "Administrador", "departamentos": [] },
+  { "nombre": "Super",  "apellido": "Usuario",   "email": "superuser@cre.bo",    "passwordPlano": "super12345",   "tipo": "administrador", "rol": "SuperUser",     "departamentos": [] },
+  { "nombre": "Carlos", "apellido": "Lima",      "email": "funcionario@cre.bo",  "passwordPlano": "func12345",    "tipo": "funcionario",   "rol": "Funcionario",   "departamentos": ["TEC"] },
+  { "nombre": "Maria",  "apellido": "Rodriguez", "email": "func_atc@cre.bo",     "passwordPlano": "func12345",    "tipo": "funcionario",   "rol": "Funcionario",   "departamentos": ["ATC"] },
+  { "nombre": "Pedro",  "apellido": "Gomez",     "email": "func_leg@cre.bo",     "passwordPlano": "func12345",    "tipo": "funcionario",   "rol": "Funcionario",   "departamentos": ["LEG"] },
+  { "nombre": "Ana",    "apellido": "Torres",    "email": "func_ope@cre.bo",     "passwordPlano": "func12345",    "tipo": "funcionario",   "rol": "Funcionario",   "departamentos": ["OPE"] },
+  { "nombre": "Juan",   "apellido": "Perez",     "email": "cliente@cre.bo",      "passwordPlano": "cliente12345", "tipo": "cliente",       "rol": "Cliente",       "departamentos": [] },
+  { "nombre": "Luis",   "apellido": "Mamani",    "email": "cliente2@cre.bo",     "passwordPlano": "cliente12345", "tipo": "cliente",       "rol": "Cliente",       "departamentos": [] },
+  { "nombre": "Rosa",   "apellido": "Flores",    "email": "cliente3@cre.bo",     "passwordPlano": "cliente12345", "tipo": "cliente",       "rol": "Cliente",       "departamentos": [] }
+]

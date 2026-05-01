@@ -1,0 +1,37 @@
+package com.example.demo.models;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import java.time.LocalDateTime;
+import java.util.Map;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Document(collection = "politicas_negocio")
+public class PoliticaNegocio {
+
+    @Id
+    private String id;
+
+    @Indexed(unique = true)
+    private String nombre;
+
+    private String descripcion;
+    private String categoria;
+    private String diagramaId;
+    private String creadorId;
+
+    private int versionActual;
+    private String estado;
+    private Map<String, Object> parametros;
+
+    private LocalDateTime fechaCreacion;
+    private LocalDateTime fechaActivacion;
+}
+

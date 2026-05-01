@@ -1,0 +1,30 @@
+[
+  {
+    "nombre": "Cliente",
+    "descripcion": "Ciudadano que inicia tramites",
+    "permisos": ["CONSULTAR_MIS_TRAMITES", "INICIAR_TRAMITE"],
+    "esSistema": true
+  },
+  {
+    "nombre": "Funcionario",
+    "descripcion": "Empleado que procesa tramites",
+    "permisos": ["CONSULTAR_MIS_TRAMITES", "COMPLETAR_NODO", "VER_TODOS_TRAMITES"],
+    "esSistema": true
+  },
+  {
+    "nombre": "Administrador",
+    "descripcion": "Administrador del sistema",
+    "permisos": [
+      "GESTIONAR_USUARIOS", "GESTIONAR_DEPARTAMENTOS", "GESTIONAR_POLITICAS",
+      "GESTIONAR_DIAGRAMAS", "GESTIONAR_ROLES", "VER_TODOS_TRAMITES",
+      "VER_REPORTES", "EXPORTAR_REPORTES"
+    ],
+    "esSistema": true
+  },
+  {
+    "nombre": "SuperUser",
+    "descripcion": "Acceso total al sistema",
+    "permisos": ["*"],
+    "esSistema": true
+  }
+]

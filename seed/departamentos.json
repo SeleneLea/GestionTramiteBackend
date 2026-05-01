@@ -1,0 +1,6 @@
+[
+  { "codigo": "ATC", "nombre": "Atencion al Cliente", "descripcion": "Recepcion y gestion de solicitudes de clientes", "activo": true },
+  { "codigo": "TEC", "nombre": "Area Tecnica",        "descripcion": "Inspecciones tecnicas y elaboracion de presupuestos", "activo": true },
+  { "codigo": "LEG", "nombre": "Area Legal",          "descripcion": "Revision y aprobacion de contratos", "activo": true },
+  { "codigo": "OPE", "nombre": "Operaciones",         "descripcion": "Ejecucion y cierre de trabajos de campo", "activo": true }
+]

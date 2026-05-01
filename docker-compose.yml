@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: tramites_mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: "12345678"
+      MONGO_INITDB_DATABASE: tramites_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init:/docker-entrypoint-initdb.d
+    networks:
+      - tramites_network
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: tramites_mongo_express
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: "12345678"
+      ME_CONFIG_MONGODB_URL: mongodb://admin:12345678@mongodb:27017/
+      ME_CONFIG_BASICAUTH: false
+    depends_on:
+      - mongodb
+    networks:
+      - tramites_network
+
+volumes:
+  mongodb_data:
+
+networks:
+  tramites_network:
+    driver: bridge
