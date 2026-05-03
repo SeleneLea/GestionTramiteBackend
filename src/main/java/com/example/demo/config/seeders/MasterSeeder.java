@@ -62,6 +62,12 @@ public class MasterSeeder {
     @Autowired private ColaboracionSeeder colaboracionSeeder;
     @Autowired private VersionSeeder      versionSeeder;
 
+    // ── Parte 2 ──────────────────────────────────────────────────────────
+    @Autowired private PermisoPuntoAtencionSeeder permisoPuntoAtencionSeeder;
+    @Autowired private RepositorioDocumentalSeeder repositorioDocumentalSeeder;
+    @Autowired private AlertaAnomaliaSeeder       alertaAnomaliaSeeder;
+    @Autowired private TramiteIaPatchSeeder       tramiteIaPatchSeeder;
+
     public void seedAll() {
         log.info("========================================");
         log.info("  INICIANDO SEED COMPLETO DEL SISTEMA  ");
@@ -88,6 +94,19 @@ public class MasterSeeder {
         logAgenteSeeder.seed();
         colaboracionSeeder.seed();
         versionSeeder.seed();
+
+        // ── Parte 2 ──────────────────────────────────────────────────────
+        // Requiere políticas + actividades sembradas.
+        permisoPuntoAtencionSeeder.seed();
+        // Crea el contenedor de repositorio por política (sin S3, sin docs).
+        // Cierra el 404 en GET /api/politicas/{id}/repositorio.
+        repositorioDocumentalSeeder.seed();
+        // Patch sobre trámites existentes: rellena riesgoDemora, probSuperarSla
+        // y rutaSugerida (CU-42/CU-43) si están vacíos. Requiere trámites +
+        // diagramas + nodos sembrados.
+        tramiteIaPatchSeeder.seed();
+        // Requiere trámites sembrados (apunta a tramiteId reales).
+        alertaAnomaliaSeeder.seed();
 
         log.info("========================================");
         log.info("       SEED COMPLETADO EXITOSAMENTE    ");

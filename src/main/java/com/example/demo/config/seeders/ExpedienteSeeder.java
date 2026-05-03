@@ -52,22 +52,32 @@ public class ExpedienteSeeder {
                 return;
             }
             switch (tramite.getCodigo()) {
-                case "TRM-2024-001" -> crearExpedienteCompleto(tramite,
+                case "TRM-2024-001", "TRM-2024-014" -> crearExpedienteCompleto(tramite,
                         nAtcVer, nTecInsp, nTecPres, nLegContr, nOpeCierre,
                         atcId, tecId, legId, opeId,
                         funcAtcId, funcTecId, funcLegId, funcOpeId);
-                case "TRM-2024-003" -> crearExpedienteParcial(tramite,
+                case "TRM-2024-002" -> crearExpedienteRechazado(tramite,
+                        nAtcVer, nTecInsp, nTecPres, nLegContr,
+                        atcId, tecId, legId,
+                        funcAtcId, funcTecId, funcLegId);
+                case "TRM-2024-003", "TRM-2024-009" -> crearExpedienteParcial(tramite,
                         nAtcVer, nTecInsp, nTecPres,
                         atcId, tecId, funcAtcId, funcTecId);
-                case "TRM-2024-004" -> crearExpedienteInicial(tramite,
+                case "TRM-2024-004", "TRM-2024-008" -> crearExpedienteInicial(tramite,
                         nAtcVer, atcId, funcAtcId);
-                case "TRM-2024-005" -> crearExpedienteObservado(tramite,
+                case "TRM-2024-005", "TRM-2024-011" -> crearExpedienteObservado(tramite,
                         nAtcVer, nTecInsp, nTecPres, nLegContr,
                         atcId, tecId, legId, funcAtcId, funcTecId, funcLegId);
-                case "TRM-2024-007" -> crearExpedienteListoParaAprobar(tramite,
+                case "TRM-2024-007", "TRM-2024-010" -> crearExpedienteListoParaAprobar(tramite,
                         nAtcVer, nTecInsp, nTecPres, nLegContr, nOpeCierre,
                         atcId, tecId, legId, opeId,
                         funcAtcId, funcTecId, funcLegId, funcOpeId);
+                case "TRM-2024-012" -> crearExpedienteCierreEnCurso(tramite,
+                        nAtcVer, nTecInsp, nTecPres, nLegContr, nOpeCierre,
+                        atcId, tecId, legId, opeId,
+                        funcAtcId, funcTecId, funcLegId, funcOpeId);
+                case "TRM-2024-006", "TRM-2024-013" -> crearExpedienteCancelado(tramite,
+                        nAtcVer, atcId, funcAtcId);
             }
         });
 
@@ -212,6 +222,92 @@ public class ExpedienteSeeder {
         tramiteRepository.save(t);
     }
 
+    private void crearExpedienteRechazado(Tramite t,
+            String nAtcVer, String nTecInsp, String nTecPres, String nLegContr,
+            String atcId, String tecId, String legId,
+            String funcAtcId, String funcTecId, String funcLegId) {
+        LocalDateTime base = t.getFechaInicio();
+        LocalDateTime cierre = t.getFechaCierreReal() != null
+                ? t.getFechaCierreReal() : base.plusDays(15);
+        ExpedienteDigital exp = crearExpediente(t.getId(), base);
+
+        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "completada",
+                funcAtcId, base, base.plusHours(5));
+        poblarCamposVerificacion(sAtc.getId());
+
+        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "completada",
+                funcTecId, base.plusDays(1), base.plusDays(5));
+        poblarCamposInspeccion(sTecInsp.getId());
+
+        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "completada",
+                funcTecId, base.plusDays(1), base.plusDays(6));
+        poblarCamposPresupuesto(sTecPres.getId());
+
+        SeccionExpediente sLeg = crearSeccion(exp.getId(), nLegContr, legId, 4, "completada",
+                funcLegId, base.plusDays(7), cierre);
+        poblarCamposContratoRechazado(sLeg.getId());
+
+        exp.setSeccionesIds(List.of(sAtc.getId(), sTecInsp.getId(), sTecPres.getId(), sLeg.getId()));
+        exp.setUltimaActualizacion(cierre);
+        expedienteRepository.save(exp);
+
+        t.setExpedienteId(exp.getId());
+        tramiteRepository.save(t);
+    }
+
+    private void crearExpedienteCierreEnCurso(Tramite t,
+            String nAtcVer, String nTecInsp, String nTecPres, String nLegContr, String nOpeCierre,
+            String atcId, String tecId, String legId, String opeId,
+            String funcAtcId, String funcTecId, String funcLegId, String funcOpeId) {
+        LocalDateTime base = t.getFechaInicio();
+        ExpedienteDigital exp = crearExpediente(t.getId(), base);
+
+        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "completada",
+                funcAtcId, base, base.plusHours(5));
+        poblarCamposVerificacion(sAtc.getId());
+
+        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "completada",
+                funcTecId, base.plusDays(2), base.plusDays(6));
+        poblarCamposInspeccion(sTecInsp.getId());
+
+        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "completada",
+                funcTecId, base.plusDays(2), base.plusDays(7));
+        poblarCamposPresupuesto(sTecPres.getId());
+
+        SeccionExpediente sLeg = crearSeccion(exp.getId(), nLegContr, legId, 4, "completada",
+                funcLegId, base.plusDays(8), base.plusDays(15));
+        poblarCamposContrato(sLeg.getId());
+
+        // OPE en curso: el funcionario esta ejecutando los trabajos
+        SeccionExpediente sOpe = crearSeccion(exp.getId(), nOpeCierre, opeId, 5, "en_curso",
+                funcOpeId, base.plusDays(16), null);
+
+        exp.setSeccionesIds(List.of(sAtc.getId(), sTecInsp.getId(), sTecPres.getId(), sLeg.getId(), sOpe.getId()));
+        exp.setUltimaActualizacion(LocalDateTime.now());
+        expedienteRepository.save(exp);
+
+        t.setExpedienteId(exp.getId());
+        tramiteRepository.save(t);
+    }
+
+    private void crearExpedienteCancelado(Tramite t, String nAtcVer, String atcId, String funcAtcId) {
+        LocalDateTime base = t.getFechaInicio();
+        LocalDateTime cierre = t.getFechaCierreReal() != null
+                ? t.getFechaCierreReal() : base.plusDays(2);
+        ExpedienteDigital exp = crearExpediente(t.getId(), base);
+
+        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "completada",
+                funcAtcId, base, cierre);
+        poblarCamposVerificacion(sAtc.getId());
+
+        exp.setSeccionesIds(List.of(sAtc.getId()));
+        exp.setUltimaActualizacion(cierre);
+        expedienteRepository.save(exp);
+
+        t.setExpedienteId(exp.getId());
+        tramiteRepository.save(t);
+    }
+
     // --- Helpers ---
 
     private ExpedienteDigital crearExpediente(String tramiteId, LocalDateTime fechaCreacion) {
@@ -283,6 +379,16 @@ public class ExpedienteSeeder {
         campo(seccionId, null, "clausulas_ok",       "true",            "checkbox");
         campo(seccionId, null, "resultado_revision", "Aprobado",        "select");
         campo(seccionId, null, "observaciones_legales", "",             "textarea");
+    }
+
+    private void poblarCamposContratoRechazado(String seccionId) {
+        campo(seccionId, null, "numero_contrato",    "CONT-2024-0388",  "texto");
+        campo(seccionId, null, "fecha_revision",     "2024-04-08",      "fecha");
+        campo(seccionId, null, "clausulas_ok",       "false",           "checkbox");
+        campo(seccionId, null, "resultado_revision", "Rechazado",       "select");
+        campo(seccionId, null, "observaciones_legales",
+                "Documentacion de respaldo insuficiente. El titulo de propiedad presentado no cumple con los requisitos legales vigentes.",
+                "textarea");
     }
 
     private void poblarCamposCierre(String seccionId) {

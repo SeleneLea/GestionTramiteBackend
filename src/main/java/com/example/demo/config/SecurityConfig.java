@@ -55,6 +55,8 @@ public class SecurityConfig {
                 
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/health/**").permitAll()
+                // WebSocket (STOMP) — el JWT se valida en el handshake interceptor.
+                .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/api/usuarios/me").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/usuarios/funcionarios").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR")
                 .requestMatchers("/api/usuarios/**").hasRole("ADMINISTRADOR")
@@ -129,6 +131,40 @@ public class SecurityConfig {
                 // Trazabilidad e historial
                 .requestMatchers("/api/trazabilidad/**").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR")
                 .requestMatchers("/api/historial/**").authenticated()
+
+                // ===== Parte 2 · Gestión documental =====
+                // Crear repositorio (reintento manual) — solo admin
+                .requestMatchers(HttpMethod.POST, "/api/politicas/*/repositorio").hasRole("ADMINISTRADOR")
+                .requestMatchers(HttpMethod.GET,  "/api/politicas/*/repositorio").authenticated()
+                .requestMatchers(HttpMethod.GET,  "/api/repositorios/**").authenticated()
+                // Subir documento — funcionario/admin/cliente
+                .requestMatchers(HttpMethod.POST, "/api/repositorios/*/documentos").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR", "CLIENTE")
+                // Versionar — solo funcionario/admin
+                .requestMatchers(HttpMethod.POST, "/api/documentos/*/versiones").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR")
+                // Auditoría — solo admin
+                .requestMatchers(HttpMethod.GET,  "/api/documentos/*/auditoria").hasRole("ADMINISTRADOR")
+                // Resto de lecturas de documentos — autenticado
+                .requestMatchers(HttpMethod.GET,  "/api/documentos/**").authenticated()
+                .requestMatchers(HttpMethod.GET,  "/api/tramites/*/documentos").authenticated()
+                // Permisos por punto de atención — solo admin
+                .requestMatchers(HttpMethod.PUT,  "/api/actividades/*/permiso-documental").hasRole("ADMINISTRADOR")
+                .requestMatchers(HttpMethod.GET,  "/api/politicas/*/permisos-documentales").authenticated()
+                .requestMatchers(HttpMethod.GET,  "/api/politicas/*/actividades/*/permiso-documental").authenticated()
+
+                // ===== Parte 2 · IA (proxy al microservicio Python) =====
+                // CU-39 — dictar formulario
+                .requestMatchers(HttpMethod.POST, "/api/expedientes/secciones/*/dictar").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR")
+                // CU-40 — sugerencia de política para el cliente
+                .requestMatchers(HttpMethod.POST, "/api/tramites/sugerir-politica").hasAnyRole("CLIENTE", "FUNCIONARIO", "ADMINISTRADOR")
+                .requestMatchers("/api/sugerencias/**").hasAnyRole("CLIENTE", "FUNCIONARIO", "ADMINISTRADOR")
+                // CU-41 — reportes naturales
+                .requestMatchers(HttpMethod.POST, "/api/reportes/consulta-natural").hasRole("ADMINISTRADOR")
+                // CU-42 — ruta óptima
+                .requestMatchers(HttpMethod.POST, "/api/tramites/*/ruta-optima").authenticated()
+                // CU-43 — trámites en riesgo
+                .requestMatchers(HttpMethod.GET,  "/api/tramites/en-riesgo").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR")
+                // CU-45 — alertas de anomalía
+                .requestMatchers("/api/alertas-anomalias/**").hasRole("ADMINISTRADOR")
 
                 .anyRequest().authenticated()
             )

@@ -49,3 +49,10 @@ out/
 
 ### Docker volumes ###
 mongodb_data/
+
+### Archivos generados / locales ###
+uploads/
+guias2/
+qc
+__pycache__/
+*.pyc

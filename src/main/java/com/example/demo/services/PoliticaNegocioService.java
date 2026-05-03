@@ -27,6 +27,8 @@ public class PoliticaNegocioService {
     @Autowired private NodoDiagramaRepository nodoRepository;
     @Autowired private ActividadRepository actividadRepository;
     @Autowired private DocumentoRepository documentoRepository;
+    /** CU-32 — auto-creación del repositorio documental al guardar la política. */
+    @Autowired private RepositorioDocumentalService repositorioDocumentalService;
 
     public PoliticaNegocio crear(PoliticaNegocioRequest req, String creadorId) {
         if (politicaRepository.findByNombre(req.getNombre()).isPresent()) {
@@ -43,7 +45,28 @@ public class PoliticaNegocioService {
         p.setEstado("borrador");
         p.setFechaCreacion(LocalDateTime.now());
 
-        return politicaRepository.save(p);
+        PoliticaNegocio guardada = politicaRepository.save(p);
+
+        if (req.getDiagramaId() != null && !req.getDiagramaId().isBlank()) {
+            vincularDiagrama(guardada, req.getDiagramaId());
+            guardada = politicaRepository.save(guardada);
+        }
+
+        // CU-32 — repositorio asociado 1:1. Si S3 está deshabilitado o falla,
+        // no rompemos la creación de la política; queda para reintento manual
+        // vía POST /api/politicas/{id}/repositorio.
+        try {
+            repositorioDocumentalService.crearAlGuardarPolitica(guardada.getId());
+            // Re-leer la política porque crearAlGuardarPolitica actualizó repositorioId
+            guardada = politicaRepository.findById(guardada.getId()).orElse(guardada);
+        } catch (Exception ex) {
+            // Log silencioso; el endpoint manual permite recuperar
+            org.slf4j.LoggerFactory.getLogger(PoliticaNegocioService.class)
+                    .warn("[CU-32] No se pudo crear repositorio para política {}: {}",
+                            guardada.getId(), ex.getMessage());
+        }
+
+        return guardada;
     }
 
     public List<PoliticaNegocio> listarTodas() {
@@ -74,7 +97,40 @@ public class PoliticaNegocioService {
         p.setCategoria(req.getCategoria());
         p.setParametros(req.getParametros());
 
+        String nuevoDiagramaId = (req.getDiagramaId() != null && !req.getDiagramaId().isBlank())
+                ? req.getDiagramaId()
+                : null;
+        String diagramaActual = p.getDiagramaId();
+
+        if (!java.util.Objects.equals(nuevoDiagramaId, diagramaActual)) {
+            if (diagramaActual != null) {
+                diagramaRepository.findById(diagramaActual).ifPresent(d -> {
+                    d.setPoliticaId(null);
+                    diagramaRepository.save(d);
+                });
+            }
+            if (nuevoDiagramaId != null) {
+                vincularDiagrama(p, nuevoDiagramaId);
+            } else {
+                p.setDiagramaId(null);
+            }
+        }
+
         return politicaRepository.save(p);
+    }
+
+    private void vincularDiagrama(PoliticaNegocio politica, String diagramaId) {
+        var diagrama = diagramaRepository.findById(diagramaId)
+                .orElseThrow(() -> new IllegalArgumentException("Diagrama no encontrado: " + diagramaId));
+
+        if (diagrama.getPoliticaId() != null && !diagrama.getPoliticaId().equals(politica.getId())) {
+            throw new IllegalArgumentException(
+                    "El diagrama ya está vinculado a otra política");
+        }
+
+        politica.setDiagramaId(diagrama.getId());
+        diagrama.setPoliticaId(politica.getId());
+        diagramaRepository.save(diagrama);
     }
 
     public PoliticaNegocio cambiarEstado(String id, String nuevoEstado) {

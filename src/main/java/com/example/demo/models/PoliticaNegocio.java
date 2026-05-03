@@ -27,6 +27,9 @@ public class PoliticaNegocio {
     private String diagramaId;
     private String creadorId;
 
+    /** CU-32 — FK al RepositorioDocumental (1:1). Se rellena al crear la política. */
+    private String repositorioId;
+
     private int versionActual;
     private String estado;
     private Map<String, Object> parametros;

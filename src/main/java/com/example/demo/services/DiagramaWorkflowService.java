@@ -58,6 +58,10 @@ public class DiagramaWorkflowService {
         return diagramaRepository.findByEstado(estado);
     }
 
+    public List<DiagramaWorkflow> listarSinPolitica() {
+        return diagramaRepository.findByPoliticaIdIsNull();
+    }
+
     public Optional<DiagramaWorkflow> buscarPorId(String id) {
         return diagramaRepository.findById(id);
     }

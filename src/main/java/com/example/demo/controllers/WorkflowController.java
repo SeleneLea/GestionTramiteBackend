@@ -1,12 +1,17 @@
 package com.example.demo.controllers;
 
 import com.example.demo.dto.CompletarNodoRequest;
+import com.example.demo.dto.FlujoCompletoResponse;
 import com.example.demo.dto.IniciarTramiteRequest;
+import com.example.demo.models.Actividad;
+import com.example.demo.models.Documento;
 import com.example.demo.models.EstadoHistorico;
 import com.example.demo.models.NodoDiagrama;
 import com.example.demo.models.SeccionExpediente;
 import com.example.demo.models.Tramite;
+import com.example.demo.repositories.ActividadRepository;
 import com.example.demo.repositories.DepartamentoRepository;
+import com.example.demo.repositories.DocumentoRepository;
 import com.example.demo.repositories.EstadoHistoricoRepository;
 import com.example.demo.repositories.ExpedienteDigitalRepository;
 import com.example.demo.repositories.NodoDiagramaRepository;
@@ -14,6 +19,7 @@ import com.example.demo.repositories.PoliticaNegocioRepository;
 import com.example.demo.repositories.SeccionExpedienteRepository;
 import com.example.demo.repositories.TramiteRepository;
 import com.example.demo.repositories.UsuarioRepository;
+import com.example.demo.services.IaProxyService;
 import com.example.demo.services.WorkflowEngineService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,6 +49,10 @@ public class WorkflowController {
     @Autowired private ExpedienteDigitalRepository expedienteRepository;
     @Autowired private SeccionExpedienteRepository seccionRepository;
     @Autowired private EstadoHistoricoRepository historicoRepository;
+    @Autowired private ActividadRepository actividadRepository;
+    @Autowired private DocumentoRepository documentoRepository;
+    /** CU-44 — proxy al microservicio para ordenar la bandeja por IA. Opcional. */
+    @Autowired(required = false) private IaProxyService iaProxy;
 
     @PostMapping("/iniciar")
     @PreAuthorize("hasAnyRole('CLIENTE','FUNCIONARIO','ADMINISTRADOR')")
@@ -170,33 +180,205 @@ public class WorkflowController {
         return ResponseEntity.ok(resp);
     }
 
+    @GetMapping("/{tramiteId}/flujo-completo")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+        summary = "Camino completo del trámite",
+        description = "Devuelve TODO el flujo del diagrama de la política con: nodos en orden, departamento, actividad, documentos requeridos y estado de cada nodo en este trámite específico."
+    )
+    public ResponseEntity<FlujoCompletoResponse> flujoCompleto(@PathVariable String tramiteId) {
+        Tramite t = workflowEngine.buscarTramite(tramiteId);
+
+        FlujoCompletoResponse resp = new FlujoCompletoResponse();
+        resp.setTramiteId(t.getId());
+        resp.setCodigo(t.getCodigo());
+        resp.setNodoActualId(t.getNodoActualId());
+
+        if (t.getPoliticaId() != null) {
+            politicaRepository.findById(t.getPoliticaId())
+                    .ifPresent(p -> resp.setPoliticaNombre(p.getNombre()));
+        }
+
+        // Resolver diagrama desde la política
+        String diagramaId = t.getPoliticaId() != null
+                ? politicaRepository.findById(t.getPoliticaId())
+                        .map(p -> p.getDiagramaId()).orElse(null)
+                : null;
+
+        if (diagramaId == null) {
+            resp.setNodos(java.util.Collections.emptyList());
+            return ResponseEntity.ok(resp);
+        }
+
+        // Nodos del diagrama ordenados
+        List<NodoDiagrama> nodos = nodoRepository.findAll().stream()
+                .filter(n -> diagramaId.equals(n.getDiagramaId()))
+                .sorted(java.util.Comparator.comparingInt(NodoDiagrama::getOrden))
+                .toList();
+
+        // Secciones del expediente del trámite, indexadas por nodoId
+        Map<String, SeccionExpediente> seccionesPorNodo = new HashMap<>();
+        if (t.getExpedienteId() != null) {
+            seccionRepository.findByExpedienteIdOrderByOrdenSeccionAsc(t.getExpedienteId())
+                    .forEach(s -> {
+                        if (s.getNodoId() != null) {
+                            seccionesPorNodo.put(s.getNodoId(), s);
+                        }
+                    });
+        }
+
+        List<FlujoCompletoResponse.NodoFlujoDTO> nodosDto = nodos.stream()
+                .map(n -> construirNodoFlujoDto(n, t, seccionesPorNodo.get(n.getId())))
+                .toList();
+
+        resp.setNodos(nodosDto);
+        return ResponseEntity.ok(resp);
+    }
+
+    private FlujoCompletoResponse.NodoFlujoDTO construirNodoFlujoDto(NodoDiagrama nodo,
+                                                                     Tramite tramite,
+                                                                     SeccionExpediente seccion) {
+        FlujoCompletoResponse.NodoFlujoDTO dto = new FlujoCompletoResponse.NodoFlujoDTO();
+        dto.setNodoId(nodo.getId());
+        dto.setNombre(nodo.getNombre());
+        dto.setTipo(nodo.getTipo());
+        dto.setOrden(nodo.getOrden());
+        dto.setSwimlane(nodo.getSwimlane());
+        dto.setEsActual(nodo.getId().equals(tramite.getNodoActualId()));
+
+        if (nodo.getDepartamentoId() != null) {
+            departamentoRepository.findById(nodo.getDepartamentoId()).ifPresent(d -> {
+                dto.setDepartamentoCodigo(d.getCodigo());
+                dto.setDepartamentoNombre(d.getNombre());
+            });
+        }
+
+        if (nodo.getActividadId() != null) {
+            Actividad act = actividadRepository.findById(nodo.getActividadId()).orElse(null);
+            if (act != null) {
+                dto.setActividadId(act.getId());
+                dto.setActividadNombre(act.getNombre());
+                dto.setActividadDescripcion(act.getDescripcion());
+                dto.setSlaHoras(act.getSlaHoras());
+                dto.setSalidasPosibles(act.getSalidasPosibles());
+
+                List<FlujoCompletoResponse.DocumentoRequeridoDTO> docs = (act.getDocumentoIds() == null)
+                        ? java.util.Collections.emptyList()
+                        : act.getDocumentoIds().stream()
+                                .map(docId -> documentoRepository.findById(docId).orElse(null))
+                                .filter(java.util.Objects::nonNull)
+                                .map(this::toDocumentoRequeridoDto)
+                                .toList();
+                dto.setDocumentosRequeridos(docs);
+            }
+        }
+
+        if (seccion != null) {
+            dto.setEstadoSeccion(seccion.getEstado());
+            dto.setFechaAsignacion(seccion.getFechaAsignacion());
+            dto.setFechaCompletado(seccion.getFechaCompletado());
+            if (seccion.getFuncionarioId() != null) {
+                dto.setFuncionarioId(seccion.getFuncionarioId());
+                usuarioRepository.findById(seccion.getFuncionarioId()).ifPresent(u -> {
+                    String nombre = (u.getNombre() != null ? u.getNombre() : "")
+                            + (u.getApellido() != null ? " " + u.getApellido() : "");
+                    dto.setFuncionarioNombre(nombre.trim());
+                });
+            }
+        } else {
+            dto.setEstadoSeccion("bloqueada");
+        }
+
+        return dto;
+    }
+
+    private FlujoCompletoResponse.DocumentoRequeridoDTO toDocumentoRequeridoDto(Documento d) {
+        FlujoCompletoResponse.DocumentoRequeridoDTO dto = new FlujoCompletoResponse.DocumentoRequeridoDTO();
+        dto.setId(d.getId());
+        dto.setNombre(d.getNombre());
+        dto.setDescripcion(d.getDescripcion());
+        return dto;
+    }
+
     @GetMapping("/mis-tramites")
     @PreAuthorize("isAuthenticated()")
     @Operation(
         summary = "Listar mis trámites",
-        description = "Devuelve los trámites del usuario autenticado (cliente) ordenados por fecha descendente"
+        description = "Devuelve los trámites del usuario autenticado (cliente) enriquecidos con politicaNombre, nodoActualNombre y progreso."
     )
-    public ResponseEntity<List<Tramite>> misTramites(Authentication auth) {
+    public ResponseEntity<List<Map<String, Object>>> misTramites(Authentication auth) {
         String clienteId = auth.getName();
-        List<Tramite> tramites = workflowEngine.listarPorCliente(clienteId);
+        List<Map<String, Object>> tramites = workflowEngine.listarPorCliente(clienteId).stream()
+                .map(this::resumenTramite)
+                .toList();
         return ResponseEntity.ok(tramites);
     }
 
     @GetMapping("/mis-pendientes")
     @PreAuthorize("hasAnyRole('FUNCIONARIO', 'ADMINISTRADOR')")
-    @Operation(summary = "Bandeja de tramites pendientes del funcionario autenticado")
-    public ResponseEntity<List<Map<String, Object>>> misPendientes(Authentication auth) {
+    @Operation(summary = "Bandeja de tramites pendientes del funcionario autenticado",
+               description = "Parámetro ordenarPor=fecha|ia (CU-44 — IA delega al microservicio)")
+    public ResponseEntity<List<Map<String, Object>>> misPendientes(
+            @RequestParam(required = false, defaultValue = "fecha") String ordenarPor,
+            Authentication auth) {
         String userId = auth.getName();
         boolean esAdmin = auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMINISTRADOR"));
 
         List<Tramite> activos = tramiteRepository.findTramitesActivos();
-        List<Map<String, Object>> pendientes = activos.stream()
+        List<Tramite> pendientes = activos.stream()
                 .filter(t -> t.getNodoActualId() != null || t.estaEnParalelo())
                 .filter(t -> esAdmin || userId.equals(t.getFuncionarioActualId()))
+                .toList();
+
+        // CU-44 — reordenar con IA si se solicita y el proxy está disponible.
+        if ("ia".equalsIgnoreCase(ordenarPor) && iaProxy != null) {
+            try {
+                pendientes = reordenarPorIa(pendientes, userId);
+            } catch (Exception ex) {
+                // Fallback: si el microservicio falla, devolver orden por fecha.
+                org.slf4j.LoggerFactory.getLogger(WorkflowController.class)
+                        .warn("[CU-44] reordenado IA falló, cayendo a orden por fecha: {}", ex.getMessage());
+            }
+        }
+
+        List<Map<String, Object>> respuesta = pendientes.stream()
                 .map(this::resumenTramite)
                 .toList();
-        return ResponseEntity.ok(pendientes);
+        return ResponseEntity.ok(respuesta);
+    }
+
+    private List<Tramite> reordenarPorIa(List<Tramite> tramites, String funcionarioId) {
+        if (tramites.isEmpty()) return tramites;
+        List<Map<String, Object>> payload = new java.util.ArrayList<>();
+        for (Tramite t : tramites) {
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("tramite_id", t.getId());
+            entry.put("politica_id", t.getPoliticaId());
+            entry.put("fecha_inicio", t.getFechaInicio() != null ? t.getFechaInicio().toString() : null);
+            entry.put("prioridad_manual", t.getPrioridad());
+            entry.put("riesgo_demora", t.getRiesgoDemora());
+            payload.add(entry);
+        }
+
+        List<Map<String, Object>> ordenIa = iaProxy.prioridades(funcionarioId, payload);
+
+        // Construir mapa id → score para reordenar conservando los Tramite originales.
+        Map<String, Double> scoreById = new HashMap<>();
+        Map<String, String> motivoById = new HashMap<>();
+        for (Map<String, Object> r : ordenIa) {
+            String id = String.valueOf(r.get("tramite_id"));
+            Object s = r.get("score");
+            scoreById.put(id, s instanceof Number n ? n.doubleValue() : 0d);
+            motivoById.put(id, r.get("motivo") != null ? r.get("motivo").toString() : null);
+        }
+
+        // Orden descendente por score; si IA no devolvió score para alguno, va al final.
+        return tramites.stream()
+                .sorted((a, b) -> Double.compare(
+                        scoreById.getOrDefault(b.getId(), -1d),
+                        scoreById.getOrDefault(a.getId(), -1d)))
+                .toList();
     }
 
     private Map<String, Object> resumenTramite(Tramite t) {
@@ -210,6 +392,7 @@ public class WorkflowController {
         m.put("prioridad", t.getPrioridad());
         m.put("fechaInicio", t.getFechaInicio());
         m.put("fechaLimite", t.getFechaEstimadaCierre());
+        m.put("fechaCierreReal", t.getFechaCierreReal());
         m.put("nodoActualId", t.getNodoActualId());
         if (t.getPoliticaId() != null) {
             politicaRepository.findById(t.getPoliticaId())

@@ -15,6 +15,9 @@ public class NotificacionService {
     @Autowired
     private NotificacionRepository notificacionRepository;
 
+    @Autowired
+    private SseService sseService;
+
     public Notificacion crearNotificacion(String destinatarioId, String tramiteId, String tipo,
                                           String titulo, String mensaje, String canal) {
         Notificacion n = new Notificacion();
@@ -28,7 +31,12 @@ public class NotificacionService {
         n.setEstadoEnvio("web".equals(canal) ? "enviada" : "pendiente");
         n.setIntentosEnvio(0);
         n.setFechaCreacion(LocalDateTime.now());
-        return notificacionRepository.save(n);
+        Notificacion guardada = notificacionRepository.save(n);
+
+        // CU-28: push real vía SSE al usuario destinatario si tiene streams abiertos.
+        sseService.enviar(destinatarioId, "notificacion", guardada);
+
+        return guardada;
     }
 
     @Scheduled(fixedRate = 60000)

@@ -13,5 +13,6 @@ public class PoliticaNegocioRequest {
 
     private String descripcion;
     private String categoria;
+    private String diagramaId;
     private Map<String, Object> parametros;
 }

@@ -15,9 +15,59 @@ app:
     secret: "clave-ultra-secreta-para-firmar-tokens-cambiar-en-produccion-minimo-256-bits"
     expiration-ms: 86400000
     issuer: "tramites-backend"
+  seed:
+    reset: true   # true = limpia la BD y re-siembra en cada arranque (dev). false = solo siembra si faltan datos.
+
+  # === Parte 2 · Gestión documental ===
+  documental:
+    upload-max-mb: 100
+    edicion-colaborativa:
+      max-participantes: 10
+      snapshot-cada-segundos: 30
+      ttl-sesion-minutos: 5
+
+# === Parte 2 · AWS S3 ===
+# En dev puedes apuntar a MinIO (http://localhost:9000) con s3.path-style-access=true.
+# En prod usa el bucket real de AWS y deja endpoint vacío.
+aws:
+  region: ${AWS_REGION:us-east-1}
+  s3:
+    bucket: ${AWS_S3_BUCKET:tramites-dev}
+    endpoint: ${AWS_S3_ENDPOINT:}                # vacío = AWS real; útil para MinIO local
+    path-style-access: ${AWS_S3_PATH_STYLE:false} # true para MinIO
+    presigned-ttl-seconds: 300
+    access-key: ${AWS_ACCESS_KEY_ID:}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:}
+    session-token: ${AWS_SESSION_TOKEN:}          # AWS Academy
+  enabled: ${AWS_S3_ENABLED:false}                # false = no se crea S3Client (útil hasta tener credenciales)
+
+# === Parte 2 · Microservicio IA (proxy) ===
+ia:
+  service:
+    url: ${IA_SERVICE_URL:http://localhost:8001}
+    timeout-ms: 8000
+
+# === Parte 2 · Schedulers IA (CU-43 riesgo, CU-45 anomalías) ===
+# Para dev se pueden desactivar — los endpoints manuales siguen disponibles.
+app.scheduler:
+  riesgo:
+    enabled: ${SCHED_RIESGO_ENABLED:true}
+    cron:    "0 */15 * * * *"     # cada 15 minutos
+  anomalias:
+    enabled: ${SCHED_ANOMALIAS_ENABLED:true}
+    cron:    "0 0 3 * * *"        # 03:00 todos los días
+  sesion-edicion-purga:
+    enabled: ${SCHED_PURGA_ENABLED:true}
+    cron:    "0 * * * * *"        # cada minuto — purga sesiones de edición inactivas
 
 logging:
   level:
-    org.springframework.data.mongodb: DEBUG
-    org.springframework.data.mongodb.core.MongoTemplate: DEBUG
-    com.example.demo: DEBUG
+    root: WARN
+    org.springframework.data.mongodb: WARN
+    org.springframework.data.mongodb.core.MongoTemplate: WARN
+    org.springframework.boot: INFO
+    org.springframework.web: WARN
+    com.example.demo: INFO
+    com.example.demo.config.RequestLoggingFilter: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level %msg%n"

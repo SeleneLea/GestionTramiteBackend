@@ -12,4 +12,5 @@ public interface DiagramaWorkflowRepository extends MongoRepository<DiagramaWork
     Optional<DiagramaWorkflow> findByPoliticaId(String politicaId);
     List<DiagramaWorkflow> findByCreadorId(String creadorId);
     List<DiagramaWorkflow> findByEstado(String estado);
+    List<DiagramaWorkflow> findByPoliticaIdIsNull();
 }

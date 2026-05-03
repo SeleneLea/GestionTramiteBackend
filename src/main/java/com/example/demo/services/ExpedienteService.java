@@ -4,18 +4,24 @@ import com.example.demo.dto.CampoValorDto;
 import com.example.demo.dto.CompletarNodoRequest;
 import com.example.demo.dto.CompletarSeccionRequest;
 import com.example.demo.dto.GuardarSeccionRequest;
+import com.example.demo.models.CampoPlantilla;
+import com.example.demo.models.CampoSeccion;
 import com.example.demo.models.ExpedienteDigital;
+import com.example.demo.models.FormularioPlantilla;
 import com.example.demo.models.SeccionExpediente;
 import com.example.demo.models.Tramite;
+import com.example.demo.repositories.CampoPlantillaRepository;
 import com.example.demo.repositories.CampoSeccionRepository;
 import com.example.demo.repositories.DepartamentoRepository;
 import com.example.demo.repositories.ExpedienteDigitalRepository;
+import com.example.demo.repositories.FormularioPlantillaRepository;
 import com.example.demo.repositories.SeccionExpedienteRepository;
 import com.example.demo.repositories.TramiteRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +37,12 @@ public class ExpedienteService {
 
     @Autowired
     private CampoSeccionRepository campoRepository;
+
+    @Autowired
+    private FormularioPlantillaRepository formularioRepository;
+
+    @Autowired
+    private CampoPlantillaRepository campoPlantillaRepository;
 
     @Autowired
     private TramiteRepository tramiteRepository;
@@ -53,7 +65,16 @@ public class ExpedienteService {
         List<Map<String, Object>> seccionesCompletas = secciones.stream().map(seccion -> {
             Map<String, Object> secMap = new HashMap<>();
             secMap.put("infoSeccion", seccion);
-            secMap.put("campos", campoRepository.findBySeccionId(seccion.getId()));
+
+            // Si la sección está en_curso y aún no se han instanciado los CampoSeccion,
+            // copiamos la plantilla del nodo a campos con valor vacío para que el
+            // funcionario sepa visualmente qué tiene que llenar (CU-13c).
+            List<CampoSeccion> campos = campoRepository.findBySeccionId(seccion.getId());
+            if (campos.isEmpty() && "en_curso".equals(seccion.getEstado())) {
+                campos = instanciarCamposDesdeNodo(seccion);
+            }
+            secMap.put("campos", enriquecerConPlantilla(campos));
+
             if (seccion.getDepartamentoId() != null) {
                 departamentoRepository.findById(seccion.getDepartamentoId())
                         .ifPresent(d -> secMap.put("departamentoNombre", d.getCodigo() + " · " + d.getNombre()));
@@ -87,6 +108,83 @@ public class ExpedienteService {
 
         seccion.setFuncionarioId(funcionarioId);
         return seccionRepository.save(seccion);
+    }
+
+    /**
+     * Fusiona CampoSeccion (id, valor, fechaGuardado) con la metadata del
+     * CampoPlantilla (etiqueta, opciones, obligatorio, validacionRegex)
+     * para que el front pueda renderizar inputs con texto amigable y
+     * validar sin hacer una segunda llamada.
+     */
+    private List<Map<String, Object>> enriquecerConPlantilla(List<CampoSeccion> campos) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (CampoSeccion c : campos) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", c.getId());
+            row.put("seccionId", c.getSeccionId());
+            row.put("campoPlantillaId", c.getCampoPlantillaId());
+            row.put("nombre", c.getNombre());
+            row.put("tipo", c.getTipo());
+            row.put("valor", c.getValor());
+            row.put("fueDictado", c.isFueDictado());
+            row.put("fechaGuardado", c.getFechaGuardado());
+
+            // Metadata de la plantilla (puede no existir si el campo se creó
+            // huérfano, por eso es defensivo).
+            if (c.getCampoPlantillaId() != null) {
+                campoPlantillaRepository.findById(c.getCampoPlantillaId()).ifPresent(cp -> {
+                    row.put("etiqueta", cp.getEtiqueta());
+                    row.put("obligatorio", cp.isObligatorio());
+                    row.put("opciones", cp.getOpciones());
+                    row.put("validacionRegex", cp.getValidacionRegex());
+                    row.put("orden", cp.getOrden());
+                });
+            }
+            out.add(row);
+        }
+        // Ordenar por "orden" de la plantilla (los que no tienen orden, al final).
+        out.sort((a, b) -> {
+            Integer oa = (Integer) a.get("orden");
+            Integer ob = (Integer) b.get("orden");
+            if (oa == null && ob == null) return 0;
+            if (oa == null) return 1;
+            if (ob == null) return -1;
+            return Integer.compare(oa, ob);
+        });
+        return out;
+    }
+
+    /**
+     * Cuando una sección recién entra en_curso, normalmente no tiene
+     * CampoSeccion creados. Para que el funcionario vea visualmente qué
+     * tiene que rellenar, copiamos los campos de la plantilla del nodo
+     * con valor vacío. Idempotente: si ya hay campos, no hace nada.
+     */
+    private List<CampoSeccion> instanciarCamposDesdeNodo(SeccionExpediente seccion) {
+        String nodoId = seccion.getNodoId();
+        if (nodoId == null) return new ArrayList<>();
+
+        List<FormularioPlantilla> formularios = formularioRepository.findByNodoId(nodoId);
+        if (formularios.isEmpty()) return new ArrayList<>();
+
+        FormularioPlantilla form = formularios.get(0);
+        List<CampoPlantilla> plantilla = campoPlantillaRepository
+                .findByFormularioPlantillaId(form.getId());
+        plantilla.sort((a, b) -> Integer.compare(a.getOrden(), b.getOrden()));
+
+        List<CampoSeccion> nuevos = new ArrayList<>();
+        for (CampoPlantilla cp : plantilla) {
+            CampoSeccion cs = new CampoSeccion();
+            cs.setSeccionId(seccion.getId());
+            cs.setCampoPlantillaId(cp.getId());
+            cs.setNombre(cp.getNombre());
+            cs.setTipo(cp.getTipo());
+            cs.setValor("");
+            cs.setFueDictado(false);
+            cs.setFechaGuardado(LocalDateTime.now());
+            nuevos.add(campoRepository.save(cs));
+        }
+        return nuevos;
     }
 
     public Tramite completarSeccionYAvanzar(String seccionId, CompletarSeccionRequest request, String funcionarioId) {

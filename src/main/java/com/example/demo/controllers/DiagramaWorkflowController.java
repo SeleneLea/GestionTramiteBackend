@@ -26,9 +26,13 @@ public class DiagramaWorkflowController {
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Listar diagramas",
-               description = "Filtro opcional: estado=borrador|publicado|archivado")
+               description = "Filtros opcionales: estado=borrador|publicado|archivado, sinPolitica=true (diagramas huérfanos)")
     public ResponseEntity<List<DiagramaWorkflow>> listar(
-            @RequestParam(required = false) String estado) {
+            @RequestParam(required = false) String estado,
+            @RequestParam(required = false, defaultValue = "false") boolean sinPolitica) {
+        if (sinPolitica) {
+            return ResponseEntity.ok(diagramaService.listarSinPolitica());
+        }
         if (estado != null) {
             return ResponseEntity.ok(diagramaService.listarPorEstado(estado));
         }

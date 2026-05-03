@@ -45,6 +45,18 @@ public class Tramite {
 
     private int prioridad;
 
+    // === Parte 2 · CU-42 / CU-43 ===
+    /** CU-42 — Ruta de nodos sugerida por la IA. */
+    private List<String> rutaSugerida = new ArrayList<>();
+
+    /** CU-43 — Nivel de riesgo de superar el SLA: desconocido | bajo | medio | alto. */
+    private String riesgoDemora;
+
+    /** CU-43 — Probabilidad estimada de superar el SLA, 0..1. */
+    private Float probSuperarSla;
+
+    private LocalDateTime ultimaPrediccionRiesgo;
+
     // Helper
     public boolean estaEnParalelo() {
         return nodosParalellosActivos != null && !nodosParalellosActivos.isEmpty();

@@ -22,21 +22,29 @@ public class FormularioSeeder {
     @Autowired private NodoDiagramaRepository nodoRepository;
 
     public void seed() {
-        if (formularioRepository.count() > 0) {
-            log.info("[Seeder] Formularios ya existen, omitiendo");
-            return;
-        }
-
+        // Idempotente por nodo: en cada arranque verificamos si CADA nodo
+        // de actividad tiene formulario. Si no, lo creamos. Así los nodos
+        // creados después de la primera inicialización (vía UI o por trámites
+        // nuevos con diagramas distintos) también reciben formulario.
         List<NodoDiagrama> actividadNodos = nodoRepository.findAll().stream()
                 .filter(n -> "actividad".equals(n.getTipo()))
                 .toList();
 
+        int creados = 0;
         for (NodoDiagrama nodo : actividadNodos) {
+            if (!formularioRepository.findByNodoId(nodo.getId()).isEmpty()) continue;
             crearFormularioPorNodo(nodo);
+            creados++;
         }
-        log.info("[Seeder] Formularios y campos OK ({} formularios)", actividadNodos.size());
+        log.info("[Seeder] Formularios OK ({} nuevos, {} actividades totales)",
+                creados, actividadNodos.size());
     }
 
+    /**
+     * Despacha al template específico si el nombre del nodo coincide con uno
+     * conocido; de lo contrario crea un formulario genérico para que el
+     * funcionario igual tenga campos que llenar (CU-13c).
+     */
     private void crearFormularioPorNodo(NodoDiagrama nodo) {
         switch (nodo.getNombre()) {
             case "Verificar Documentos" -> crearFormVerificacion(nodo.getId());
@@ -44,7 +52,25 @@ public class FormularioSeeder {
             case "Elaborar Presupuesto" -> crearFormPresupuesto(nodo.getId());
             case "Revisar Contrato"     -> crearFormContrato(nodo.getId());
             case "Cierre y Conexion"    -> crearFormCierre(nodo.getId());
+            default                     -> crearFormGenerico(nodo);
         }
+    }
+
+    /**
+     * Formulario fallback para cualquier nodo de actividad cuyo nombre no
+     * matchea uno de los templates específicos. Cubre campos genéricos que
+     * cualquier funcionario podría necesitar registrar en su revisión.
+     */
+    private void crearFormGenerico(NodoDiagrama nodo) {
+        String nombreForm = "Formulario · " + (nodo.getNombre() != null ? nodo.getNombre() : "Actividad");
+        FormularioPlantilla form = guardarForm(nodo.getId(), nombreForm, true, true);
+        guardarCampo(form.getId(), "fecha_atencion",       "Fecha de atención",              "fecha",    true,  null, null, 1);
+        guardarCampo(form.getId(), "responsable",          "Responsable que atiende",        "texto",    true,  null, null, 2);
+        guardarCampo(form.getId(), "resumen_actuacion",    "Resumen de la actuación",        "textarea", true,  null, null, 3);
+        guardarCampo(form.getId(), "resultado",            "Resultado de la revisión",       "select",   true,
+                List.of("Conforme", "Con observaciones", "No conforme"), null, 4);
+        guardarCampo(form.getId(), "requiere_seguimiento", "Requiere seguimiento posterior", "checkbox", false, null, null, 5);
+        guardarCampo(form.getId(), "observaciones",        "Observaciones adicionales",      "textarea", false, null, null, 6);
     }
 
     private void crearFormVerificacion(String nodoId) {

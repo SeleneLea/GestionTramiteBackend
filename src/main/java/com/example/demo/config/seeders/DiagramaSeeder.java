@@ -51,11 +51,11 @@ public class DiagramaSeeder {
         String opeId = deptoId("OPE");
 
         List<Actividad> acts = actividadRepository.findAll();
-        String actAtcVer    = actId(acts, "Verificar documentos del cliente");
-        String actTecInsp   = actId(acts, "Inspeccion en campo");
-        String actTecPres   = actId(acts, "Elaborar presupuesto");
-        String actLegContr  = actId(acts, "Revisar y aprobar contrato");
-        String actOpeCierre = actId(acts, "Cierre y conexion electrica");
+        String actAtcVer    = actId(acts, "Verificación de documentos del cliente");
+        String actTecInsp   = actId(acts, "Inspección técnica en campo");
+        String actTecPres   = actId(acts, "Elaboración de presupuesto técnico");
+        String actLegContr  = actId(acts, "Revisión y aprobación del contrato");
+        String actOpeCierre = actId(acts, "Ejecución de trabajos técnicos");
 
         DiagramaWorkflow diagrama = new DiagramaWorkflow();
         diagrama.setNombre("Flujo - Nueva Conexion Residencial");
