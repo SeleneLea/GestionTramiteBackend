@@ -91,7 +91,7 @@ public class PrediccionService {
             f.put("tramite_id", t.getId());
             // Stub de features: en una iter futura se calcula desde MetricaYCuelloService
             f.put("carga_departamento", 0.5);
-            f.put("complejidad", Math.min(1.0, t.getPrioridad() / 5.0));
+            f.put("complejidad", Math.min(1.0, t.getPrioridad() / 3.0));
             f.put("hora_dia", LocalDateTime.now().getHour());
             f.put("dia_semana", LocalDateTime.now().getDayOfWeek().getValue());
             features.add(f);

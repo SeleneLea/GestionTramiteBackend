@@ -23,18 +23,7 @@ public class DiagramaSeeder {
 
     public void seed() {
         if (diagramaRepository.count() > 0) {
-            // Migrate decision transitions from "Aprobado"/"Rechazado" to "si"/"no"
-            // to match what WorkflowEngineService.avanzarDesde() expects.
-            transicionRepository.findAll().forEach(t -> {
-                if ("Aprobado".equals(t.getEtiqueta())) {
-                    t.setEtiqueta("si");
-                    transicionRepository.save(t);
-                } else if ("Rechazado".equals(t.getEtiqueta())) {
-                    t.setEtiqueta("no");
-                    transicionRepository.save(t);
-                }
-            });
-            log.info("[Seeder] Diagramas ya existen, etiquetas de decision normalizadas");
+            log.info("[Seeder] Diagramas ya existen, se omite la creacion");
             return;
         }
 
@@ -97,7 +86,7 @@ public class DiagramaSeeder {
         trans(diagId, nJoin.getId(),      nLegContr.getId(),  "secuencial",  null,        null);
         trans(diagId, nLegContr.getId(),  nDecision.getId(),  "secuencial",  null,        null);
         trans(diagId, nDecision.getId(),  nOpeCierre.getId(), "condicional", "si",  "si");
-        trans(diagId, nDecision.getId(),  nFork.getId(),      "condicional", "no",  "no");
+        trans(diagId, nDecision.getId(),  nLegContr.getId(),  "condicional", "no",  "no");
         trans(diagId, nOpeCierre.getId(), nFin.getId(),       "secuencial",  null,        null);
 
         log.info("[Seeder] Diagrama Conexion Residencial OK");

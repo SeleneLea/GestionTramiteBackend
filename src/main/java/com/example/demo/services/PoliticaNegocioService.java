@@ -40,6 +40,7 @@ public class PoliticaNegocioService {
         p.setDescripcion(req.getDescripcion());
         p.setCategoria(req.getCategoria());
         p.setParametros(req.getParametros());
+        p.setRequiereDocumentoResolucion(req.isRequiereDocumentoResolucion());
         p.setCreadorId(creadorId);
         p.setVersionActual(1);
         p.setEstado("borrador");
@@ -96,6 +97,7 @@ public class PoliticaNegocioService {
         p.setDescripcion(req.getDescripcion());
         p.setCategoria(req.getCategoria());
         p.setParametros(req.getParametros());
+        p.setRequiereDocumentoResolucion(req.isRequiereDocumentoResolucion());
 
         String nuevoDiagramaId = (req.getDiagramaId() != null && !req.getDiagramaId().isBlank())
                 ? req.getDiagramaId()

@@ -92,23 +92,23 @@ public class ExpedienteSeeder {
         LocalDateTime base = t.getFechaInicio();
         ExpedienteDigital exp = crearExpediente(t.getId(), base);
 
-        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "completada",
+        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "Derivada",
                 funcAtcId, base, base.plusHours(6));
         poblarCamposVerificacion(sAtc.getId());
 
-        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "completada",
+        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "Derivada",
                 funcTecId, base.plusDays(1), base.plusDays(5));
         poblarCamposInspeccion(sTecInsp.getId());
 
-        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "completada",
+        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "Derivada",
                 funcTecId, base.plusDays(1), base.plusDays(8));
         poblarCamposPresupuesto(sTecPres.getId());
 
-        SeccionExpediente sLeg = crearSeccion(exp.getId(), nLegContr, legId, 4, "completada",
+        SeccionExpediente sLeg = crearSeccion(exp.getId(), nLegContr, legId, 4, "Derivada",
                 funcLegId, base.plusDays(9), base.plusDays(18));
         poblarCamposContrato(sLeg.getId());
 
-        SeccionExpediente sOpe = crearSeccion(exp.getId(), nOpeCierre, opeId, 5, "completada",
+        SeccionExpediente sOpe = crearSeccion(exp.getId(), nOpeCierre, opeId, 5, "Derivada",
                 funcOpeId, base.plusDays(20), base.plusDays(25));
         poblarCamposCierre(sOpe.getId());
 
@@ -125,15 +125,15 @@ public class ExpedienteSeeder {
         LocalDateTime base = t.getFechaInicio();
         ExpedienteDigital exp = crearExpediente(t.getId(), base);
 
-        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "completada",
+        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "Derivada",
                 funcAtcId, base, base.plusHours(4));
         poblarCamposVerificacion(sAtc.getId());
 
-        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "en_curso",
+        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "En ejecucion",
                 funcTecId, base.plusDays(2), null);
 
-        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "bloqueada",
-                null, null, null);
+        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "En ejecucion",
+                funcTecId, base.plusDays(2), null);
 
         exp.setSeccionesIds(List.of(sAtc.getId(), sTecInsp.getId(), sTecPres.getId()));
         exp.setUltimaActualizacion(LocalDateTime.now());
@@ -147,7 +147,8 @@ public class ExpedienteSeeder {
         LocalDateTime base = t.getFechaInicio();
         ExpedienteDigital exp = crearExpediente(t.getId(), base);
 
-        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "en_curso",
+        // Recién llegado a la bandeja de ATC: pendiente de que el funcionario lo acepte.
+        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "Pendiente de recepcion",
                 funcAtcId, base, null);
 
         exp.setSeccionesIds(List.of(sAtc.getId()));
@@ -164,19 +165,19 @@ public class ExpedienteSeeder {
         LocalDateTime base = t.getFechaInicio();
         ExpedienteDigital exp = crearExpediente(t.getId(), base);
 
-        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "completada",
+        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "Derivada",
                 funcAtcId, base, base.plusHours(5));
         poblarCamposVerificacion(sAtc.getId());
 
-        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "completada",
+        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "Derivada",
                 funcTecId, base.plusDays(2), base.plusDays(6));
         poblarCamposInspeccion(sTecInsp.getId());
 
-        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "completada",
+        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "Derivada",
                 funcTecId, base.plusDays(2), base.plusDays(7));
         poblarCamposPresupuesto(sTecPres.getId());
 
-        SeccionExpediente sLeg = crearSeccion(exp.getId(), nLegContr, legId, 4, "observado",
+        SeccionExpediente sLeg = crearSeccion(exp.getId(), nLegContr, legId, 4, "Observado",
                 funcLegId, base.plusDays(8), null);
 
         exp.setSeccionesIds(List.of(sAtc.getId(), sTecInsp.getId(), sTecPres.getId(), sLeg.getId()));
@@ -194,24 +195,24 @@ public class ExpedienteSeeder {
         LocalDateTime base = t.getFechaInicio();
         ExpedienteDigital exp = crearExpediente(t.getId(), base);
 
-        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "completada",
+        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "Derivada",
                 funcAtcId, base, base.plusHours(4));
         poblarCamposVerificacion(sAtc.getId());
 
-        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "completada",
+        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "Derivada",
                 funcTecId, base.plusDays(1), base.plusDays(4));
         poblarCamposInspeccion(sTecInsp.getId());
 
-        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "completada",
+        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "Derivada",
                 funcTecId, base.plusDays(1), base.plusDays(5));
         poblarCamposPresupuesto(sTecPres.getId());
 
         // LEG en curso: listo para que el funcionario LEG apruebe y avance a OPE.
-        SeccionExpediente sLeg = crearSeccion(exp.getId(), nLegContr, legId, 4, "en_curso",
+        SeccionExpediente sLeg = crearSeccion(exp.getId(), nLegContr, legId, 4, "En ejecucion",
                 funcLegId, base.plusDays(6), null);
 
         // OPE bloqueada: se desbloqueara cuando LEG apruebe.
-        SeccionExpediente sOpe = crearSeccion(exp.getId(), nOpeCierre, opeId, 5, "bloqueada",
+        SeccionExpediente sOpe = crearSeccion(exp.getId(), nOpeCierre, opeId, 5, "Bloqueada",
                 funcOpeId, null, null);
 
         exp.setSeccionesIds(List.of(sAtc.getId(), sTecInsp.getId(), sTecPres.getId(), sLeg.getId(), sOpe.getId()));
@@ -231,19 +232,19 @@ public class ExpedienteSeeder {
                 ? t.getFechaCierreReal() : base.plusDays(15);
         ExpedienteDigital exp = crearExpediente(t.getId(), base);
 
-        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "completada",
+        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "Derivada",
                 funcAtcId, base, base.plusHours(5));
         poblarCamposVerificacion(sAtc.getId());
 
-        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "completada",
+        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "Derivada",
                 funcTecId, base.plusDays(1), base.plusDays(5));
         poblarCamposInspeccion(sTecInsp.getId());
 
-        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "completada",
+        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "Derivada",
                 funcTecId, base.plusDays(1), base.plusDays(6));
         poblarCamposPresupuesto(sTecPres.getId());
 
-        SeccionExpediente sLeg = crearSeccion(exp.getId(), nLegContr, legId, 4, "completada",
+        SeccionExpediente sLeg = crearSeccion(exp.getId(), nLegContr, legId, 4, "Derivada",
                 funcLegId, base.plusDays(7), cierre);
         poblarCamposContratoRechazado(sLeg.getId());
 
@@ -262,24 +263,24 @@ public class ExpedienteSeeder {
         LocalDateTime base = t.getFechaInicio();
         ExpedienteDigital exp = crearExpediente(t.getId(), base);
 
-        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "completada",
+        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "Derivada",
                 funcAtcId, base, base.plusHours(5));
         poblarCamposVerificacion(sAtc.getId());
 
-        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "completada",
+        SeccionExpediente sTecInsp = crearSeccion(exp.getId(), nTecInsp, tecId, 2, "Derivada",
                 funcTecId, base.plusDays(2), base.plusDays(6));
         poblarCamposInspeccion(sTecInsp.getId());
 
-        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "completada",
+        SeccionExpediente sTecPres = crearSeccion(exp.getId(), nTecPres, tecId, 3, "Derivada",
                 funcTecId, base.plusDays(2), base.plusDays(7));
         poblarCamposPresupuesto(sTecPres.getId());
 
-        SeccionExpediente sLeg = crearSeccion(exp.getId(), nLegContr, legId, 4, "completada",
+        SeccionExpediente sLeg = crearSeccion(exp.getId(), nLegContr, legId, 4, "Derivada",
                 funcLegId, base.plusDays(8), base.plusDays(15));
         poblarCamposContrato(sLeg.getId());
 
         // OPE en curso: el funcionario esta ejecutando los trabajos
-        SeccionExpediente sOpe = crearSeccion(exp.getId(), nOpeCierre, opeId, 5, "en_curso",
+        SeccionExpediente sOpe = crearSeccion(exp.getId(), nOpeCierre, opeId, 5, "En ejecucion",
                 funcOpeId, base.plusDays(16), null);
 
         exp.setSeccionesIds(List.of(sAtc.getId(), sTecInsp.getId(), sTecPres.getId(), sLeg.getId(), sOpe.getId()));
@@ -296,7 +297,7 @@ public class ExpedienteSeeder {
                 ? t.getFechaCierreReal() : base.plusDays(2);
         ExpedienteDigital exp = crearExpediente(t.getId(), base);
 
-        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "completada",
+        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "Derivada",
                 funcAtcId, base, cierre);
         poblarCamposVerificacion(sAtc.getId());
 
@@ -440,8 +441,7 @@ public class ExpedienteSeeder {
                     seccionRepository.findByExpedienteIdOrderByOrdenSeccionAsc(exp.getId())
                         .stream()
                         .filter(s -> s.getNodoId() != null
-                                && !"completada".equals(s.getEstado())
-                                && !"completado".equals(s.getEstado()))
+                                && !EstadoSeccion.esDerivada(s.getEstado()))
                         .findFirst()
                         .ifPresent(s -> {
                             t.setNodoActualId(s.getNodoId());
@@ -457,13 +457,9 @@ public class ExpedienteSeeder {
     private String orEmpty(String s) { return s != null ? s : ""; }
 
     private String normalizarEstadoSeccion(String estado) {
-        if (estado == null) return null;
-        return switch (estado) {
-            case "completado" -> "completada";
-            case "en_proceso" -> "en_curso";
-            case "pendiente"  -> "bloqueada";
-            default           -> estado; // "observado", "completada", "en_curso", "bloqueada" se mantienen
-        };
+        // Canonicaliza cualquier literal (legacy o nuevo) al vocabulario del enum.
+        EstadoSeccion e = EstadoSeccion.from(estado);
+        return e != null ? e.getValor() : estado;
     }
 
     private String nodoId(List<NodoDiagrama> nodos, String tipo, String nombre) {

@@ -29,7 +29,7 @@ public interface TramiteRepository extends MongoRepository<Tramite, String> {
 
     List<Tramite> findByPoliticaId(String politicaId);
 
-    @Query("{ 'estadoActual': { $in: ['En proceso', 'Derivado', 'Observado'] } }")
+    @Query("{ 'estadoActual': { $nin: ['Aprobado', 'Rechazado', 'Cancelado', 'Completado', 'Cancelado por el usuario'] } }")
     List<Tramite> findTramitesActivos();
 
     long countByEstadoActual(String estado);

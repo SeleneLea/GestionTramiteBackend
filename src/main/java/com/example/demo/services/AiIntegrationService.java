@@ -11,14 +11,18 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Service
 public class AiIntegrationService {
@@ -38,11 +42,19 @@ public class AiIntegrationService {
     @Value("${app.ai.agente-url:http://localhost:8002/api/chat}")
     private String agenteUrl;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    // B5: timeouts para no bloquear hilos de Tomcat si el microservicio cuelga.
+    private final RestTemplate restTemplate = crearRestTemplate();
+
+    private static RestTemplate crearRestTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(4000);
+        factory.setReadTimeout(8000);
+        return new RestTemplate(factory);
+    }
 
     public TranscripcionVoz transcribirAudio(String seccionId, MultipartFile archivo, String funcionarioId) {
         String texto;
-        float confianza = 0.0f;
+        float confianza;
 
         try {
             HttpHeaders headers = new HttpHeaders();
@@ -59,13 +71,23 @@ public class AiIntegrationService {
             body.add("audio", resource);
 
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-            String response = restTemplate.postForObject(transcripcionUrl, requestEntity, String.class);
-            texto = response != null && !response.isBlank()
-                    ? response
-                    : "Respuesta vacia del servicio de transcripcion";
-            confianza = 0.95f;
+            // B4: deserializar el cuerpo y extraer el texto real, no guardar el JSON crudo.
+            @SuppressWarnings("unchecked")
+            Map<String, Object> resp = restTemplate.postForObject(transcripcionUrl, requestEntity, Map.class);
+            if (resp == null) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                        "IA_NO_DISPONIBLE: respuesta vacia del servicio de voz");
+            }
+            Object textoObj = resp.getOrDefault("texto_transcrito", resp.get("texto"));
+            texto = textoObj != null ? textoObj.toString() : "";
+            Object confObj = resp.get("confianza");
+            confianza = confObj instanceof Number ? ((Number) confObj).floatValue() : 0.9f;
+        } catch (ResponseStatusException e) {
+            throw e;
         } catch (Exception e) {
-            texto = "[Error en conexion con microservicio de voz] " + e.getMessage();
+            // B4: NO persistir el error como si fuera una transcripción válida; degradar con 503.
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "IA_NO_DISPONIBLE: " + e.getMessage(), e);
         }
 
         TranscripcionVoz tv = new TranscripcionVoz();
@@ -84,16 +106,31 @@ public class AiIntegrationService {
         AgenteResponse resp;
 
         try {
-            String response = restTemplate.postForObject(agenteUrl, input, String.class);
-            if (response != null && !response.isBlank()) {
+            // BK-M2: deserializar el cuerpo de n8n y extraer el texto real (respuesta/output),
+            // no guardar el JSON crudo (mismo bug corregido en transcribirAudio).
+            @SuppressWarnings("unchecked")
+            Map<String, Object> body = restTemplate.postForObject(agenteUrl, input, Map.class);
+            Object textoObj = body != null ? body.getOrDefault("respuesta", body.get("output")) : null;
+            String texto = textoObj != null ? textoObj.toString() : null;
+            if (texto != null && !texto.isBlank()) {
                 resp = new AgenteResponse();
-                resp.setRespuesta(response);
+                resp.setRespuesta(texto);
                 resp.setFuente("n8n");
-                if (resp.getAccion() == null) {
-                    AgenteResponse local = agenteKb.responder(input, rolId);
-                    resp.setAccion(local.getAccion());
+                Object accionObj = body.get("accion");
+                if (accionObj instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> accionMap = (Map<String, Object>) accionObj;
+                    AgenteResponse.AccionDirecta accion = new AgenteResponse.AccionDirecta();
+                    Object label = accionMap.get("label");
+                    Object ruta = accionMap.get("ruta");
+                    Object tipo = accionMap.get("tipo");
+                    accion.setLabel(label != null ? label.toString() : null);
+                    accion.setRuta(ruta != null ? ruta.toString() : null);
+                    accion.setTipo(tipo != null ? tipo.toString() : null);
+                    resp.setAccion(accion);
                 }
             } else {
+                // n8n no respondió válido: degradar a la base de conocimiento local.
                 resp = agenteKb.responder(input, rolId);
             }
         } catch (Exception e) {

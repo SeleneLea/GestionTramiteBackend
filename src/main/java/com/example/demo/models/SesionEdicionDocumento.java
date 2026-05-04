@@ -24,6 +24,10 @@ public class SesionEdicionDocumento {
     @Id
     private String id;
 
+    /** Versión optimista (RN-C01) — evita last-write-wins en el roster concurrente. */
+    @org.springframework.data.annotation.Version
+    private Long version;
+
     @Indexed(unique = true)
     private String documentoArchivoId;
 

@@ -33,8 +33,8 @@ public class Tramite {
     // Nodo actual para flujos lineales/condicionales/iterativos
     private String nodoActualId;
 
-    // Para flujos paralelos: lista de nodos activos simultÃ¡neamente
-    // VacÃ­a en flujos no paralelos. Cuando todos se completen el JOIN puede avanzar.
+    // Para flujos paralelos: lista de nodos activos simultáneamente
+    // Vacía en flujos no paralelos. Cuando todos se completen el JOIN puede avanzar.
     private List<String> nodosParalellosActivos = new ArrayList<>();
 
     private String funcionarioActualId;
@@ -56,6 +56,13 @@ public class Tramite {
     private Float probSuperarSla;
 
     private LocalDateTime ultimaPrediccionRiesgo;
+
+    // === Documento de resolución (lo que el trámite "devuelve" al cliente) ===
+    /** FK al DocumentoArchivo con la resolución entregable. Null si aún no hay. */
+    private String documentoResolucionId;
+    private LocalDateTime fechaResolucion;
+    /** Tipo/etiqueta de la resolución (ej. "Resolución", "Estado de deudas"). */
+    private String tipoResolucion;
 
     // Helper
     public boolean estaEnParalelo() {

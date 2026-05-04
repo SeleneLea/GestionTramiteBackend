@@ -35,11 +35,11 @@ public class MetricaSeeder {
         String trm002 = tramiteId(tramites, "TRM-2024-002");
         String trm005 = tramiteId(tramites, "TRM-2024-005");
 
-        String actVerDocs  = actId(actividades, "Verificar documentos del cliente");
-        String actInsp     = actId(actividades, "Inspeccion en campo");
-        String actPresup   = actId(actividades, "Elaborar presupuesto");
-        String actContrato = actId(actividades, "Revisar y aprobar contrato");
-        String actCierre   = actId(actividades, "Cierre y conexion electrica");
+        String actVerDocs  = actId(actividades, "Verificación de documentos del cliente");
+        String actInsp     = actId(actividades, "Inspección técnica en campo");
+        String actPresup   = actId(actividades, "Elaboración de presupuesto técnico");
+        String actContrato = actId(actividades, "Revisión y aprobación del contrato");
+        String actCierre   = actId(actividades, "Ejecución de trabajos técnicos");
 
         String atcId = deptoId("ATC");
         String tecId = deptoId("TEC");
@@ -76,8 +76,10 @@ public class MetricaSeeder {
                     now.minusDays(15), now.minusDays(15).plusHours(5));
             metrica(trm005, actInsp,     tecId, 4 * 24 * 3600L, false,
                     now.minusDays(13), now.minusDays(9));
-            metrica(trm005, actContrato, legId, 7 * 24 * 3600L, true,
-                    now.minusDays(7), now.minusDays(7).plusHours(2));
+            // actContrato (LEG) sigue EN CURSO: la seccion legal continua Observada,
+            // por eso no tiene fechaFin ni se marca superoSla todavia.
+            metrica(trm005, actContrato, legId, 7 * 24 * 3600L,
+                    now.minusDays(7));
         }
 
         // --- Cuellos de botella detectados ---
@@ -108,6 +110,12 @@ public class MetricaSeeder {
         metricaRepository.save(m);
     }
 
+    // Variante para actividad EN CURSO: sin fechaFin y sin superar SLA aun.
+    private void metrica(String tramiteId, String actividadId, String departamentoId,
+                         long tiempoSegundos, LocalDateTime inicio) {
+        metrica(tramiteId, actividadId, departamentoId, tiempoSegundos, false, inicio, null);
+    }
+
     private void cuelloBotella(String actividadId, String departamentoId, String periodo,
                                 int tramitesAcumulados, float tiempoPromedio, float tiempoEsperado,
                                 float desviacion, String causaSugerida, LocalDateTime deteccion) {
@@ -130,8 +138,12 @@ public class MetricaSeeder {
     }
 
     private String actId(List<Actividad> acts, String nombre) {
-        return acts.stream().filter(a -> nombre.equals(a.getNombre()))
+        String id = acts.stream().filter(a -> nombre.equals(a.getNombre()))
                 .findFirst().map(Actividad::getId).orElse(null);
+        if (id == null) {
+            log.warn("[Seeder] Actividad no encontrada: '{}' -> metricas/cuellos quedaran con actividadId=null", nombre);
+        }
+        return id;
     }
 
     private String deptoId(String codigo) {

@@ -76,7 +76,7 @@ class MetricasReportesNotificacionesIT extends BaseIntegrationIT {
         Map<String, Object> req = new HashMap<>();
         req.put("tipo", "tramites");
         req.put("formato", "CSV");
-        req.put("filtros", Map.of("estado", "En proceso"));
+        req.put("filtros", Map.of("estado", "En curso"));
 
         ResponseEntity<String> r = post("/reportes/generar", req, adminHeaders());
         assertThat(r.getStatusCode().is2xxSuccessful())
@@ -145,10 +145,10 @@ class MetricasReportesNotificacionesIT extends BaseIntegrationIT {
         JsonNode arr = getJson("/tramites/historial", adminHeaders());
         assertThat(arr.isArray()).isTrue();
 
-        JsonNode arrFiltrado = getJson("/tramites/historial?estado=Completado", adminHeaders());
+        JsonNode arrFiltrado = getJson("/tramites/historial?estado=Aprobado", adminHeaders());
         // El DTO HistorialTramiteResponse expone `estadoActual` (no `estado`)
         for (JsonNode h : arrFiltrado) {
-            assertThat(h.path("estadoActual").asText()).isEqualToIgnoringCase("Completado");
+            assertThat(h.path("estadoActual").asText()).isEqualToIgnoringCase("Aprobado");
         }
     }
 

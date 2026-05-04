@@ -68,33 +68,44 @@ public class EstadoSeeder {
         switch (t.getCodigo()) {
             case "TRM-2024-001" -> {
                 // Tramite completado: paso por todos los nodos
-                hist(t.getId(), "Iniciado",   "En proceso", null,        nAtcVer,   funcAtcId, "Documentos verificados", base.plusHours(2));
-                hist(t.getId(), "En proceso", "En proceso", nAtcVer,     nFork,     funcAtcId, "Derivado a inspeccion y presupuesto", base.plusDays(1));
-                hist(t.getId(), "En proceso", "En proceso", nFork,       nTecInsp,  funcTecId, "Inspeccion completada", base.plusDays(5));
-                hist(t.getId(), "En proceso", "En proceso", nTecInsp,    nLegContr, funcLegId, "Presupuesto elaborado, contrato en revision", base.plusDays(10));
-                hist(t.getId(), "En proceso", "En proceso", nLegContr,   nDecision, funcLegId, "Contrato revisado y aprobado", base.plusDays(18));
-                hist(t.getId(), "En proceso", "En proceso", nDecision,   nOpeCierre,funcOpeId, "Decision: aprobado, iniciando conexion", base.plusDays(20));
-                hist(t.getId(), "En proceso", "Completado", nOpeCierre,  nFin,      funcOpeId, "Conexion realizada exitosamente", base.plusDays(25));
+                hist(t.getId(), "En curso",   "En curso", null,        nAtcVer,   funcAtcId, "Documentos verificados", base.plusHours(2));
+                hist(t.getId(), "En curso", "En curso", nAtcVer,     nFork,     funcAtcId, "Derivado a inspeccion y presupuesto", base.plusDays(1));
+                hist(t.getId(), "En curso", "En curso", nFork,       nTecInsp,  funcTecId, "Inspeccion completada", base.plusDays(5));
+                hist(t.getId(), "En curso", "En curso", nTecInsp,    nLegContr, funcLegId, "Presupuesto elaborado, contrato en revision", base.plusDays(10));
+                hist(t.getId(), "En curso", "En curso", nLegContr,   nDecision, funcLegId, "Contrato revisado y aprobado", base.plusDays(18));
+                hist(t.getId(), "En curso", "En curso", nDecision,   nOpeCierre,funcOpeId, "Decision: aprobado, iniciando conexion", base.plusDays(20));
+                hist(t.getId(), "En curso", "Aprobado", nOpeCierre,  nFin,      funcOpeId, "Conexion realizada exitosamente", base.plusDays(25));
             }
             case "TRM-2024-002" -> {
-                hist(t.getId(), "Iniciado",   "En proceso", null,        nAtcVer,   funcAtcId, "Documentos recibidos", base.plusHours(1));
-                hist(t.getId(), "En proceso", "En proceso", nAtcVer,     nLegContr, funcLegId, "Derivado a revision legal", base.plusDays(3));
-                hist(t.getId(), "En proceso", "Rechazado",  nLegContr,   nDecision, funcLegId, "Contrato rechazado: documentacion incompleta", base.plusDays(15));
+                hist(t.getId(), "En curso",   "En curso", null,        nAtcVer,   funcAtcId, "Documentos recibidos", base.plusHours(1));
+                hist(t.getId(), "En curso", "En curso", nAtcVer,     nLegContr, funcLegId, "Derivado a revision legal", base.plusDays(3));
+                hist(t.getId(), "En curso", "Rechazado",  nLegContr,   nDecision, funcLegId, "Contrato rechazado: documentacion incompleta", base.plusDays(15));
             }
             case "TRM-2024-003" -> {
-                hist(t.getId(), "Iniciado",   "En proceso", null,        nAtcVer,   funcAtcId, "Documentos verificados", base.plusHours(3));
-                hist(t.getId(), "En proceso", "En proceso", nAtcVer,     nFork,     funcAtcId, "Derivado a inspeccion y presupuesto en paralelo", base.plusDays(2));
+                hist(t.getId(), "En curso",   "En curso", null,        nAtcVer,   funcAtcId, "Documentos verificados", base.plusHours(3));
+                hist(t.getId(), "En curso", "En curso", nAtcVer,     nFork,     funcAtcId, "Derivado a inspeccion y presupuesto en paralelo", base.plusDays(2));
             }
             case "TRM-2024-004" -> {
-                hist(t.getId(), "Iniciado",   "Iniciado",   null,        nAtcVer,   funcAtcId, "Tramite iniciado por el cliente", base);
+                hist(t.getId(), "En curso",   "En curso",   null,        nAtcVer,   funcAtcId, "Tramite iniciado por el cliente", base);
             }
             case "TRM-2024-005" -> {
-                hist(t.getId(), "Iniciado",   "En proceso", null,        nAtcVer,   funcAtcId, "Documentos verificados", base.plusHours(2));
-                hist(t.getId(), "En proceso", "En proceso", nAtcVer,     nFork,     funcAtcId, "Derivado a inspeccion", base.plusDays(2));
-                hist(t.getId(), "En proceso", "Observado",  nFork,       nLegContr, funcLegId, "Contrato con observaciones pendientes", base.plusDays(8));
+                hist(t.getId(), "En curso",   "En curso", null,        nAtcVer,   funcAtcId, "Documentos verificados", base.plusHours(2));
+                hist(t.getId(), "En curso", "En curso", nAtcVer,     nFork,     funcAtcId, "Derivado a inspeccion", base.plusDays(2));
+                hist(t.getId(), "En curso", "Observado",  nFork,       nLegContr, funcLegId, "Contrato con observaciones pendientes", base.plusDays(8));
             }
             case "TRM-2024-006" -> {
-                hist(t.getId(), "Iniciado",   "Cancelado",  null,        nAtcVer,   adminId, "Tramite cancelado a solicitud del cliente", base.plusDays(2));
+                hist(t.getId(), "En curso",   "Cancelado",  null,        nAtcVer,   adminId, "Tramite cancelado a solicitud del cliente", base.plusDays(2));
+            }
+            default -> {
+                // Historial minimo para cualquier tramite no cubierto explicitamente:
+                // garantiza >=2 entradas y un timeline no vacio para el detector de anomalias.
+                hist(t.getId(), null,        "En curso",          null,                 nAtcVer,            funcAtcId, "Tramite iniciado", base);
+                if (t.getNodoActualId() != null) {
+                    hist(t.getId(), "En curso", t.getEstadoActual(), nAtcVer,              t.getNodoActualId(), funcTecId, "Avance a etapa actual", base.plusDays(1));
+                } else if (t.getNodosParalellosActivos() != null && !t.getNodosParalellosActivos().isEmpty()) {
+                    List<String> nodosParalelos = t.getNodosParalellosActivos();
+                    hist(t.getId(), "En curso", t.getEstadoActual(), nAtcVer,              nodosParalelos.get(0), funcTecId, "Avance a etapa paralela", base.plusDays(1));
+                }
             }
         }
     }

@@ -6,87 +6,27 @@
 db = db.getSiblingDB('tramites_db');
 
 // ------------ ACTIVIDADES (CRE) ------------
-var dptosATC = db.departamentos.findOne({ codigo: "ATC" });
-var dptosTEC = db.departamentos.findOne({ codigo: "TEC" });
-var dptosLEG = db.departamentos.findOne({ codigo: "LEG" });
-var dptosOPE = db.departamentos.findOne({ codigo: "OPE" });
+// La siembra de actividades se eliminó de mongo-init (no-op):
+// ActividadSeeder.java es ahora la única fuente de verdad y crea las 12 actividades
+// con sus nombres canónicos, SLA, salidasPosibles y documentoIds.
+// Si mongo-init insertaba aquí con nombres distintos, bajo reset=false ActividadSeeder
+// se saltaba (count>0) y DiagramaSeeder no lograba resolver los actividadId por nombre.
 
-db.actividades.insertMany([
-    {
-        nombre: "Recibir solicitud",
-        descripcion: "Recepción inicial de nueva conexión",
-        departamentoId: dptosATC._id,
-        slaHoras: 24,
-        slaMinutos: 0,
-        reutilizable: false,
-        activo: true,
-        fechaCreacion: new Date()
-    },
-    {
-        nombre: "Inspección técnica",
-        descripcion: "Revisar factibilidad técnica de la conexión",
-        departamentoId: dptosTEC._id,
-        slaHoras: 72,
-        slaMinutos: 0,
-        reutilizable: false,
-        activo: true,
-        fechaCreacion: new Date()
-    },
-    {
-        nombre: "Elaborar presupuesto",
-        descripcion: "Crear presupuesto de obras",
-        departamentoId: dptosTEC._id,
-        slaHoras: 48,
-        slaMinutos: 0,
-        reutilizable: false,
-        activo: true,
-        fechaCreacion: new Date()
-    },
-    {
-        nombre: "Revisar legalidad",
-        descripcion: "Validar documentos y contratos",
-        departamentoId: dptosLEG._id,
-        slaHoras: 24,
-        slaMinutos: 0,
-        reutilizable: false,
-        activo: true,
-        fechaCreacion: new Date()
-    },
-    {
-        nombre: "Aprobar o rechazar",
-        descripcion: "Decisión final sobre la solicitud",
-        departamentoId: dptosLEG._id,
-        slaHoras: 12,
-        slaMinutos: 0,
-        reutilizable: false,
-        activo: true,
-        fechaCreacion: new Date()
-    },
-    {
-        nombre: "Ejecutar conexión",
-        descripcion: "Instalación física de la conexión",
-        departamentoId: dptosOPE._id,
-        slaHoras: 120,
-        slaMinutos: 0,
-        reutilizable: false,
-        activo: true,
-        fechaCreacion: new Date()
-    }
-]);
+// ------------ POLÍTICA DE NEGOCIO (Nueva conexion residencial) ----
+// La siembra de esta política se eliminó de mongo-init para evitar duplicados:
+// PoliticaSeeder.java es ahora la única fuente y la crea como 'Nueva conexion residencial' (sin tilde).
+// db.politicas_negocio.insertOne({
+//     nombre: "Nueva conexion residencial",
+//     descripcion: "Política para solicitudes de nueva conexión de energía eléctrica en zona residencial",
+//     version: "1.0",
+//     estado: "activa",
+//     slaMaximoDias: 15,
+//     diagramaId: null,  // Se asignará cuando se cree el diagrama en G5
+//     activo: true,
+//     fechaCreacion: new Date(),
+//     fechaActivacion: new Date()
+// });
 
-// ------------ POLÍTICA DE NEGOCIO (Nueva conexión residencial) ----
-db.politicas_negocio.insertOne({
-    nombre: "Nueva conexión residencial",
-    descripcion: "Política para solicitudes de nueva conexión de energía eléctrica en zona residencial",
-    version: "1.0",
-    estado: "activa",
-    slaMaximoDias: 15,
-    diagramaId: null,  // Se asignará cuando se cree el diagrama en G5
-    activo: true,
-    fechaCreacion: new Date(),
-    fechaActivacion: new Date()
-});
-
-print("=== Actividades y Políticas insertadas correctamente ===");
-print("Actividades creadas: " + db.actividades.countDocuments());
-print("Políticas creadas: " + db.politicas_negocio.countDocuments());
+print("=== Actividades: no-op en mongo-init (las siembra ActividadSeeder.java) ===");
+print("Actividades existentes: " + db.actividades.countDocuments());
+print("Políticas creadas (las siembra PoliticaSeeder.java): " + db.politicas_negocio.countDocuments());

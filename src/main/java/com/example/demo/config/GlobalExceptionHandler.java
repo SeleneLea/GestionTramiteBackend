@@ -9,6 +9,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,7 +28,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> manejarIllegalState(IllegalStateException ex,
                                                              HttpServletRequest req) {
         log.error("IllegalStateException en {}: {}", req.getRequestURI(), ex.getMessage(), ex);
-        return construir(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage(), req, null);
+        return construir(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno del servidor", req, null);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -45,11 +46,22 @@ public class GlobalExceptionHandler {
         return construir(HttpStatus.BAD_REQUEST, "Datos inválidos", req, errores);
     }
 
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> manejarResponseStatus(ResponseStatusException ex,
+                                                               HttpServletRequest req) {
+        HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
+        String msg = ex.getReason() != null ? ex.getReason() : status.getReasonPhrase();
+        if (status.is5xxServerError()) {
+            log.warn("ResponseStatusException {} en {}: {}", status.value(), req.getRequestURI(), msg);
+        }
+        return construir(status, msg, req, null);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> manejarGenerico(Exception ex, HttpServletRequest req) {
         log.error("Exception no manejada en {}: {}", req.getRequestURI(), ex.getMessage(), ex);
         return construir(HttpStatus.INTERNAL_SERVER_ERROR,
-                "Error inesperado: " + ex.getMessage(), req, null);
+                "Error interno del servidor", req, null);
     }
 
     private ResponseEntity<ErrorResponse> construir(HttpStatus status, String mensaje,

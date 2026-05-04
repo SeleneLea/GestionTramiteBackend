@@ -9,6 +9,12 @@ import java.util.List;
 @Repository
 public interface TrazabilidadRepository extends MongoRepository<Trazabilidad, String> {
     List<Trazabilidad> findByTramiteIdOrderByTimestampDesc(String tramiteId);
+    List<Trazabilidad> findByTramiteIdOrderByTimestampAsc(String tramiteId);
     Trazabilidad findFirstByTramiteIdOrderByTimestampDesc(String tramiteId);
     Trazabilidad findTopByTramiteIdOrderByTimestampDesc(String tramiteId);
+    // Desempate determinista por _id: dos trazas en el mismo ms (truncado) se
+    // ordenan igual que se escribieron, para que verificarCadena no marque rota
+    // una cadena VÁLIDA cuando el timestamp empata.
+    List<Trazabilidad> findByTramiteIdOrderByTimestampAscIdAsc(String tramiteId);
+    Trazabilidad findTopByTramiteIdOrderByTimestampDescIdDesc(String tramiteId);
 }

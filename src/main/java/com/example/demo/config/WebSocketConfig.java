@@ -41,14 +41,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // Misma lista que CorsConfigurationSource en SecurityConfig — mantenerlas sincronizadas.
         registry.addEndpoint("/ws")
-                .setAllowedOrigins(
+                .setAllowedOriginPatterns(
                         "http://localhost:4200",
                         "http://localhost:4300",
                         "http://localhost:8100",
                         "http://localhost:3000",
-                        "https://web-five-kappa-99.vercel.app",
-                        "http://44.213.74.152:8080",
-                        "https://44.213.74.152:8443"
+                        "https://*.vercel.app",
+                        "https://ficctuagrmbolivia.online",
+                        "https://*.ficctuagrmbolivia.online"
                 )
                 .addInterceptors(new JwtHandshakeInterceptor(jwtUtils));
     }

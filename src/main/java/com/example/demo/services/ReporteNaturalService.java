@@ -12,9 +12,12 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.BasicQuery;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,7 +47,8 @@ public class ReporteNaturalService {
 
     /** Operadores prohibidos a nivel pipeline. */
     private static final Set<String> OPERADORES_PROHIBIDOS = Set.of(
-            "$out", "$merge", "$function", "$accumulator", "$where", "$expr"
+            "$out", "$merge", "$function", "$accumulator", "$where", "$expr",
+            "$lookup", "$unionWith", "$graphLookup"
     );
 
     private final ObjectMapper json = new ObjectMapper();
@@ -72,7 +76,10 @@ public class ReporteNaturalService {
         // Ejecutar
         List<Document> stages = new ArrayList<>();
         for (Map<String, Object> stage : pipeline) {
-            stages.add(new Document(stage));
+            // El pipeline de la IA trae fechas en Extended-JSON {"$date":"<iso>"}
+            // que new Document(Map) NO interpreta; las normalizamos a java.util.Date.
+            Object normalizado = normalizarFechas(stage);
+            stages.add(new Document((Map<String, Object>) normalizado));
         }
         // Forzar $limit defensivo al final si no lo trae
         if (!tieneLimit(pipeline)) {
@@ -88,21 +95,29 @@ public class ReporteNaturalService {
             filas.add(new HashMap<>(d));
         }
 
+        // Audita la lista REALMENTE ejecutada (stages, con el $limit defensivo),
+        // no el pipeline original devuelto por la IA.
+        String queryStr;
+        try {
+            queryStr = json.writeValueAsString(stages);
+        } catch (Exception e) {
+            queryStr = stages.toString();
+        }
+
         // Persistir reporte (audit + reuso)
         Reporte r = new Reporte();
         r.setGeneradoPorId(adminId);
         r.setTipo("CONSULTA_NATURAL");
-        r.setFiltros(Map.of("consultaOriginal", req.getConsulta(),
-                "collection", collection));
+        // Mapa mutable: además de la consulta original, persistimos el pipeline
+        // REALMENTE ejecutado (stages, con el $limit defensivo) para auditoría.
+        Map<String, Object> filtros = new LinkedHashMap<>();
+        filtros.put("consultaOriginal", req.getConsulta());
+        filtros.put("collection", collection);
+        filtros.put("pipelineEjecutado", queryStr);
+        r.setFiltros(filtros);
         r.setFormato(req.getFormatoExport() != null ? req.getFormatoExport() : "JSON");
         r.setFechaGeneracion(LocalDateTime.now());
 
-        String queryStr;
-        try {
-            queryStr = json.writeValueAsString(pipeline);
-        } catch (Exception e) {
-            queryStr = pipeline.toString();
-        }
         r = reporteRepository.save(r);
 
         // Muestra: las primeras 50 filas
@@ -119,15 +134,65 @@ public class ReporteNaturalService {
         );
     }
 
+    /**
+     * Valida el pipeline de forma RECURSIVA: recorre todo el árbol Map/List y,
+     * por cada Map, verifica que ninguna clave esté en {@link #OPERADORES_PROHIBIDOS},
+     * descendiendo en los valores que sean Map o List. Así se alcanzan operadores
+     * anidados ($expr, $where, $function, $accumulator, $lookup, $out, $merge…)
+     * escondidos dentro de $facet o de subdocumentos, que la inspección de solo
+     * nivel 1 dejaba pasar.
+     */
     private void validarPipeline(List<Map<String, Object>> pipeline) {
         for (Map<String, Object> stage : pipeline) {
-            for (String operador : stage.keySet()) {
-                if (OPERADORES_PROHIBIDOS.contains(operador)) {
+            validarNodo(stage);
+        }
+    }
+
+    private void validarNodo(Object valor) {
+        if (valor instanceof Map<?, ?> mapa) {
+            for (Map.Entry<?, ?> entrada : mapa.entrySet()) {
+                String clave = String.valueOf(entrada.getKey());
+                if (OPERADORES_PROHIBIDOS.contains(clave)) {
                     throw new IllegalArgumentException(
-                            "RPT_PIPELINE_INVALIDO: operador prohibido " + operador);
+                            "RPT_PIPELINE_INVALIDO: operador prohibido " + clave);
                 }
+                validarNodo(entrada.getValue());
+            }
+        } else if (valor instanceof List<?> lista) {
+            for (Object elemento : lista) {
+                validarNodo(elemento);
             }
         }
+    }
+
+    /**
+     * Normaliza recursivamente los valores Extended-JSON {@code {"$date":"<iso>"}}
+     * que el pipeline de la IA trae como String y que {@code new Document(Map)} no
+     * interpreta, convirtiéndolos a {@link java.util.Date}. Sin esto, el reporte por
+     * rango de fechas compara contra texto y devuelve 0 filas.
+     */
+    @SuppressWarnings("unchecked")
+    private Object normalizarFechas(Object valor) {
+        if (valor instanceof Map<?, ?> mapa) {
+            if (mapa.size() == 1 && mapa.containsKey("$date")
+                    && mapa.get("$date") instanceof String s) {
+                return Date.from(Instant.parse(s));
+            }
+            Map<String, Object> resultado = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entrada : mapa.entrySet()) {
+                resultado.put(String.valueOf(entrada.getKey()),
+                        normalizarFechas(entrada.getValue()));
+            }
+            return resultado;
+        }
+        if (valor instanceof List<?> lista) {
+            List<Object> resultado = new ArrayList<>(lista.size());
+            for (Object elemento : lista) {
+                resultado.add(normalizarFechas(elemento));
+            }
+            return resultado;
+        }
+        return valor;
     }
 
     private boolean tieneLimit(List<Map<String, Object>> pipeline) {

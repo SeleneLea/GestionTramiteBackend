@@ -11,13 +11,22 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
 @Component
 @Slf4j
 public class TrazabilidadSeeder {
+
+    // Mismo hash génesis que TrazabilidadService: 64 ceros, primer hashAnterior de cada cadena.
+    private static final String HASH_GENESIS =
+            "0000000000000000000000000000000000000000000000000000000000000000";
 
     @Autowired private TrazabilidadRepository trazabilidadRepository;
     @Autowired private TramiteRepository tramiteRepository;
@@ -45,42 +54,57 @@ public class TrazabilidadSeeder {
 
         for (Tramite t : tramites) {
             LocalDateTime base = t.getFechaInicio() != null ? t.getFechaInicio() : LocalDateTime.now().minusDays(5);
-            String hash0 = "sha256-" + t.getCodigo() + "-init";
 
+            // hashAnterior del primer eslabón = génesis; los siguientes encadenan con el hashActual previo.
             switch (t.getCodigo()) {
                 case "TRM-2024-001" -> {
-                    String h1 = reg(t.getId(), funcAtcId, "INICIAR_TRAMITE",   nAtcVer,  null,     hash0,                   null, base);
-                    String h2 = reg(t.getId(), funcAtcId, "COMPLETAR_NODO",    nAtcVer,  Map.of("documentos_ok", true), h1, hash0, base.plusHours(6));
-                    String h3 = reg(t.getId(), funcTecId, "COMPLETAR_NODO",    null,     Map.of("inspeccion_ok", true), h2, h1,   base.plusDays(5));
-                    String h4 = reg(t.getId(), funcLegId, "COMPLETAR_NODO",    nLegContr,Map.of("contrato", "CONT-2024-0421"), h3, h2, base.plusDays(18));
-                    reg(t.getId(), funcOpeId, "COMPLETAR_TRAMITE", nFin, Map.of("medidor", "MED20240421", "estado_final", "Completado"), h4, h3, base.plusDays(25));
+                    String h1 = reg(t.getId(), funcAtcId, "iniciar",         nAtcVer,  null,     HASH_GENESIS, base);
+                    String h2 = reg(t.getId(), funcAtcId, "completar_nodo",  nAtcVer,  Map.of("documentos_ok", true), h1, base.plusHours(6));
+                    String h3 = reg(t.getId(), funcTecId, "completar_nodo",  null,     Map.of("inspeccion_ok", true), h2, base.plusDays(5));
+                    String h4 = reg(t.getId(), funcLegId, "completar_nodo",  nLegContr,Map.of("contrato", "CONT-2024-0421"), h3, base.plusDays(18));
+                    reg(t.getId(), funcOpeId, "completar_nodo", nFin, Map.of("medidor", "MED20240421", "estado_final", "Completado"), h4, base.plusDays(25));
                 }
                 case "TRM-2024-002" -> {
-                    String h1 = reg(t.getId(), funcAtcId, "INICIAR_TRAMITE",  nAtcVer,  null, hash0, null, base);
-                    reg(t.getId(), funcLegId, "RECHAZAR_TRAMITE", nLegContr, Map.of("motivo", "Documentacion insuficiente"), h1, hash0, base.plusDays(15));
+                    String h1 = reg(t.getId(), funcAtcId, "iniciar",  nAtcVer,  null, HASH_GENESIS, base);
+                    reg(t.getId(), funcLegId, "rechazar", nLegContr, Map.of("motivo", "Documentacion insuficiente"), h1, base.plusDays(15));
                 }
                 case "TRM-2024-003" -> {
-                    String h1 = reg(t.getId(), funcAtcId, "INICIAR_TRAMITE",  nAtcVer, null, hash0, null, base);
-                    reg(t.getId(), funcTecId, "AVANZAR_NODO", null, Map.of("rama", "paralelo"), h1, hash0, base.plusDays(2));
+                    String h1 = reg(t.getId(), funcAtcId, "iniciar",  nAtcVer, null, HASH_GENESIS, base);
+                    reg(t.getId(), funcTecId, "completar_rama_paralela", null, Map.of("rama", "paralelo"), h1, base.plusDays(2));
                 }
                 case "TRM-2024-004" -> {
-                    reg(t.getId(), funcAtcId, "INICIAR_TRAMITE", nAtcVer, null, hash0, null, base);
+                    reg(t.getId(), funcAtcId, "iniciar", nAtcVer, null, HASH_GENESIS, base);
                 }
                 case "TRM-2024-005" -> {
-                    String h1 = reg(t.getId(), funcAtcId, "INICIAR_TRAMITE",     nAtcVer,  null, hash0, null, base);
-                    reg(t.getId(), funcLegId,  "OBSERVAR_NODO", nLegContr, Map.of("observacion", "Falta firma notarial"), h1, hash0, base.plusDays(8));
+                    String h1 = reg(t.getId(), funcAtcId, "iniciar",     nAtcVer,  null, HASH_GENESIS, base);
+                    reg(t.getId(), funcLegId,  "observar", nLegContr, Map.of("observacion", "Falta firma notarial"), h1, base.plusDays(8));
                 }
                 case "TRM-2024-006" -> {
-                    String h1 = reg(t.getId(), funcAtcId, "INICIAR_TRAMITE",  nAtcVer, null, hash0, null, base);
-                    reg(t.getId(), adminId,    "CANCELAR_TRAMITE", null, Map.of("motivo", "Solicitud del cliente"), h1, hash0, base.plusDays(2));
+                    String h1 = reg(t.getId(), funcAtcId, "iniciar",  nAtcVer, null, HASH_GENESIS, base);
+                    reg(t.getId(), adminId,    "cancelar", null, Map.of("motivo", "Solicitud del cliente"), h1, base.plusDays(2));
+                }
+                default -> {
+                    // Cadena minima para cualquier tramite no cubierto explicitamente:
+                    // garantiza un eslabon genesis valido para que verificarCadena() no recorra cadena vacia.
+                    String h1 = reg(t.getId(), funcAtcId, "iniciar", nAtcVer, null, HASH_GENESIS, base);
+                    if (t.getNodoActualId() != null) {
+                        reg(t.getId(), funcTecId, "completar_nodo", t.getNodoActualId(),
+                                Map.of("avance", "etapa_actual"), h1, base.plusDays(1));
+                    }
                 }
             }
         }
         log.info("[Seeder] Trazabilidad OK");
     }
 
+    /**
+     * Persiste un eslabón de la cadena calculando un hash VÁLIDO idéntico al de
+     * TrazabilidadService.registrar(): trunca el timestamp a milisegundos antes de
+     * hashear y guardar, y deriva hashActual = generarHash(construirInputHash(reg)).
+     * Devuelve el hashActual para encadenar el siguiente eslabón.
+     */
     private String reg(String tramiteId, String actorId, String accion, String nodoId,
-                       Map<String, Object> datosDespues, String hashActual, String hashAnterior,
+                       Map<String, Object> datosDespues, String hashAnterior,
                        LocalDateTime ts) {
         Trazabilidad tr = new Trazabilidad();
         tr.setTramiteId(tramiteId);
@@ -89,11 +113,41 @@ public class TrazabilidadSeeder {
         tr.setNodoId(nodoId);
         tr.setDatosAntes(null);
         tr.setDatosDespues(datosDespues);
-        tr.setHashActual(hashActual);
+        // Truncar a milisegundos: igual que el servicio, para que el hash coincida tras releer de Mongo.
+        tr.setTimestamp(ts != null ? ts.truncatedTo(ChronoUnit.MILLIS) : null);
         tr.setHashAnterior(hashAnterior);
-        tr.setTimestamp(ts);
+
+        tr.setHashActual(generarHash(construirInputHash(tr)));
+
         trazabilidadRepository.save(tr);
-        return hashActual;
+        return tr.getHashActual();
+    }
+
+    // Réplica EXACTA de TrazabilidadService.construirInputHash: separador '|',
+    // TreeMap canónico de datosDespues, timestamp via String.valueOf, mismos campos y orden.
+    private String construirInputHash(Trazabilidad t) {
+        Map<String, Object> datos = t.getDatosDespues();
+        String datosCanon = new java.util.TreeMap<>(
+                datos != null ? datos : java.util.Map.<String, Object>of()).toString();
+        return String.join("|",
+                t.getTramiteId() == null ? "" : t.getTramiteId(),
+                t.getActorId() == null ? "" : t.getActorId(),
+                t.getAccion() == null ? "" : t.getAccion(),
+                t.getNodoId() == null ? "" : t.getNodoId(),
+                datosCanon,
+                String.valueOf(t.getTimestamp()),
+                t.getHashAnterior() == null ? "" : t.getHashAnterior());
+    }
+
+    // Réplica EXACTA de TrazabilidadService.generarHash: SHA-256 en Base64.
+    private String generarHash(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] encodedhash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(encodedhash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Error de integridad: algoritmo SHA-256 no disponible.");
+        }
     }
 
     private String nodoId(List<NodoDiagrama> nodos, String tipo, String nombre) {

@@ -61,7 +61,7 @@ public class AgenteAsistenciaService {
         }
 
         if (consulta.contains("politica") || consulta.contains("política") || consulta.contains("flujo") || consulta.contains("workflow")) {
-            List<PoliticaNegocio> activas = politicaRepo.findByEstado("ACTIVA");
+            List<PoliticaNegocio> activas = politicaRepo.findByEstado("activa");
             if (activas.isEmpty()) {
                 activas = politicaRepo.findAll();
             }

@@ -6,84 +6,35 @@
 db = db.getSiblingDB('tramites_db');
 
 // ------------ PERMISOS ------------
-db.permisos.insertMany([
-    { codigo: "CREAR_FLUJO", modulo: "flujos", descripcion: "Crear y editar flujos de trabajo" },
-    { codigo: "GESTIONAR_USUARIOS", modulo: "usuarios", descripcion: "Administrar usuarios del sistema" },
-    { codigo: "VER_REPORTES", modulo: "reportes", descripcion: "Ver dashboards y reportes" },
-    { codigo: "EJECUTAR_TRAMITE", modulo: "tramites", descripcion: "Ejecutar actividades asignadas" },
-    { codigo: "VER_HISTORIAL_DEPARTAMENTO", modulo: "tramites", descripcion: "Ver historial del departamento" },
-    { codigo: "SOLICITAR_TRAMITE", modulo: "tramites", descripcion: "Iniciar nuevos trámites" },
-    { codigo: "CONSULTAR_MIS_TRAMITES", modulo: "tramites", descripcion: "Consultar estado de trámites propios" },
-    { codigo: "APROBAR_TRAMITE", modulo: "tramites", descripcion: "Aprobar o rechazar trámites" },
-    { codigo: "CONFIGURAR_SISTEMA", modulo: "configuracion", descripcion: "Configurar parámetros del sistema" }
-]);
+// SEED-MONGOINIT-02: NO se siembran permisos aquí. Los códigos que vivían en este
+// script (CREAR_FLUJO, EJECUTAR_TRAMITE, APROBAR_TRAMITE, etc.) divergían de los
+// definidos en PermisoSeeder.java (INICIAR_TRAMITE, COMPLETAR_NODO, VER_TODOS_TRAMITES, ...).
+// La fuente de verdad de permisos es PermisoSeeder.java (no-op aquí).
 
 // ------------ ROLES ------------
-db.roles.insertMany([
-    {
-        nombre: "SuperUser",
-        descripcion: "Acceso total al sistema",
-        permisos: ["*"],
-        esSistema: true,
-        fechaCreacion: new Date()
-    },
-    {
-        nombre: "Administrador",
-        descripcion: "Crea flujos y gestiona configuración",
-        permisos: ["CREAR_FLUJO", "GESTIONAR_USUARIOS", "VER_REPORTES", "CONFIGURAR_SISTEMA"],
-        esSistema: true,
-        fechaCreacion: new Date()
-    },
-    {
-        nombre: "Funcionario",
-        descripcion: "Ejecuta trámites asignados",
-        permisos: ["EJECUTAR_TRAMITE", "VER_HISTORIAL_DEPARTAMENTO", "APROBAR_TRAMITE"],
-        esSistema: true,
-        fechaCreacion: new Date()
-    },
-    {
-        nombre: "Cliente",
-        descripcion: "Solicita y consulta sus trámites",
-        permisos: ["SOLICITAR_TRAMITE", "CONSULTAR_MIS_TRAMITES"],
-        esSistema: true,
-        fechaCreacion: new Date()
-    }
-]);
+// SEED-MONGOINIT-02: NO se siembran roles aquí. Bajo reset=false, los permisos
+// sembrados por este script dejaban al rol Funcionario con permisos equivocados
+// (EJECUTAR_TRAMITE/VER_HISTORIAL_DEPARTAMENTO/APROBAR_TRAMITE en lugar de
+// CONSULTAR_MIS_TRAMITES/COMPLETAR_NODO/VER_TODOS_TRAMITES). La fuente de verdad
+// de roles es RolSeeder.java (no-op aquí).
 
 // ------------ DEPARTAMENTOS (ejemplo CRE) ------------
-db.departamentos.insertMany([
-    { nombre: "Atención al Cliente", codigo: "ATC", descripcion: "Recepción de solicitudes", activo: true, fechaCreacion: new Date() },
-    { nombre: "Área Técnica", codigo: "TEC", descripcion: "Inspección y presupuesto", activo: true, fechaCreacion: new Date() },
-    { nombre: "Área Legal", codigo: "LEG", descripcion: "Revisión de contratos", activo: true, fechaCreacion: new Date() },
-    { nombre: "Operaciones", codigo: "OPE", descripcion: "Ejecución y cierre", activo: true, fechaCreacion: new Date() }
-]);
+// SEED-MONGOINIT-02: NO se siembran departamentos aquí. La fuente de verdad de
+// departamentos es DepartamentoSeeder.java (no-op aquí).
 
 // ------------ CANALES DE ENVÍO ------------
-db.canales_envio.insertMany([
-    { tipo: "push_flutter", configuracion: { proveedor: "FCM" }, activo: true },
-    { tipo: "web_internal", configuracion: { websocket: true }, activo: true },
-    { tipo: "email", configuracion: { smtp: "configurar" }, activo: false }
-]);
+// SEED-MONGOINIT-02: NO se siembran canales de envío aquí. Los tipos que vivían en
+// este script (push_flutter/web_internal/email) divergían de los de CanalEnvioSeeder.java
+// (EMAIL/SMS/PUSH/IN_APP). La fuente de verdad de canales es CanalEnvioSeeder.java (no-op aquí).
 
-// ------------ USUARIO ADMIN INICIAL (contraseña: admin12345) ----
-var rolAdmin = db.roles.findOne({ nombre: "Administrador" });
-db.usuarios.insertOne({
-    nombre: "Admin",
-    apellido: "Sistema",
-    email: "admin@cre.bo",
-    passwordHash: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWq",
-    rolId: rolAdmin._id,
-    tipo: "administrador",
-    telefono: null,
-    departamentosIds: [],
-    activo: true,
-    fechaRegistro: new Date(),
-    ultimoAcceso: null
-});
+// ------------ USUARIOS ------------
+// B7: NO se siembran usuarios aquí. El hash BCrypt que vivía en este script no
+// correspondía a 'admin12345' y rompía el login. La fuente de verdad de usuarios
+// es UsuarioSeeder.java (usa passwordEncoder.encode(...), hashes válidos garantizados).
 
-print("=== Datos iniciales insertados correctamente ===");
-print("Roles creados: " + db.roles.countDocuments());
-print("Permisos creados: " + db.permisos.countDocuments());
-print("Departamentos creados: " + db.departamentos.countDocuments());
-print("Canales de envío creados: " + db.canales_envio.countDocuments());
-print("Usuarios creados: " + db.usuarios.countDocuments());
+print("=== mongo-init: sin siembra de datos de dominio ===");
+print("Permisos: gestionados por PermisoSeeder.java (no por mongo-init)");
+print("Roles: gestionados por RolSeeder.java (no por mongo-init)");
+print("Departamentos: gestionados por DepartamentoSeeder.java (no por mongo-init)");
+print("Canales de envío: gestionados por CanalEnvioSeeder.java (no por mongo-init)");
+print("Usuarios: gestionados por UsuarioSeeder.java (no por mongo-init)");

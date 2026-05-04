@@ -1,12 +1,12 @@
 package com.example.demo.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
 public class CompletarNodoRequest {
 
-    @NotBlank(message = "funcionarioId es obligatorio")
+    // Lo deriva el controller desde el JWT (auth.getName()); opcional en el payload.
+    // Los servicios internos (ExpedienteService, TramiteDecisionService) lo setean directamente.
     private String funcionarioId;
 
     // Para nodos de decisión: "si" o "no" (coincide con la etiqueta del FlujoTransicion)

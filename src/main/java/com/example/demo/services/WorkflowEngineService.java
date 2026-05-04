@@ -5,6 +5,11 @@ import com.example.demo.dto.IniciarTramiteRequest;
 import com.example.demo.models.*;
 import com.example.demo.repositories.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -28,6 +33,7 @@ public class WorkflowEngineService {
     @Autowired private NotificacionService notificacionService;
     @Autowired private TrazabilidadService trazabilidadService;
     @Autowired private com.example.demo.repositories.UsuarioRepository usuarioRepository;
+    @Autowired private MongoTemplate mongoTemplate;
 
     // ─────────────────────────────────────────────────────────────────────
     // INICIAR TRÁMITE
@@ -62,7 +68,7 @@ public class WorkflowEngineService {
         tramite.setCodigo(generarCodigo());
         tramite.setClienteId(req.getClienteId());
         tramite.setPoliticaId(req.getPoliticaId());
-        tramite.setEstadoActual("Nuevo");
+        tramite.setEstadoActual(EstadoTramite.EN_CURSO.getValor());
         tramite.setPrioridad(req.getPrioridad() > 0 ? req.getPrioridad() : 3);
         tramite.setFechaInicio(LocalDateTime.now());
         tramite = tramiteRepository.save(tramite);
@@ -86,7 +92,7 @@ public class WorkflowEngineService {
             seccion.setNodoId(nodo.getId());
             seccion.setDepartamentoId(nodo.getDepartamentoId());
             seccion.setOrdenSeccion(nodo.getOrden());
-            seccion.setEstado("bloqueada");   // todas bloqueadas al inicio
+            seccion.setEstado(EstadoSeccion.BLOQUEADA.getValor());   // todas bloqueadas al inicio
             seccion = seccionRepository.save(seccion);
             seccionesIds.add(seccion.getId());
         }
@@ -95,13 +101,13 @@ public class WorkflowEngineService {
         expedienteRepository.save(expediente);
 
         tramite.setExpedienteId(expediente.getId());
-        tramite.setEstadoActual("En proceso");
+        tramite.setEstadoActual(EstadoTramite.EN_CURSO.getValor());
         tramite = tramiteRepository.save(tramite);
 
         // 6. Avanzar desde INICIO al primer nodo (el motor toma control)
         tramite = avanzarDesde(tramite, nodoInicio, null, todosLosNodos);
 
-        registrarHistorico(tramite.getId(), "Nuevo", "En proceso", null, tramite.getNodoActualId(), req.getClienteId(), "Trámite iniciado");
+        registrarHistorico(tramite.getId(), null, EstadoTramite.EN_CURSO.getValor(), null, tramite.getNodoActualId(), req.getClienteId(), "Trámite iniciado");
         trazabilidadService.registrar(tramite.getId(), req.getClienteId(), "iniciar",
                 tramite.getNodoActualId(), Map.of("politicaId", req.getPoliticaId()));
         return tramiteRepository.save(tramite);
@@ -115,11 +121,14 @@ public class WorkflowEngineService {
         Tramite tramite = tramiteRepository.findById(tramiteId)
                 .orElseThrow(() -> new IllegalArgumentException("Trámite no encontrado"));
 
-        if ("Aprobado".equals(tramite.getEstadoActual()) || "Rechazado".equals(tramite.getEstadoActual())) {
+        if (EstadoTramite.esFinalizado(tramite.getEstadoActual())) {
             throw new IllegalArgumentException("El trámite ya está cerrado");
         }
 
-        // Determinar qué nodo está completando el funcionario
+        // Determinar qué nodo está completando el funcionario.
+        // NOTA: el control fino de ownership/departamento está deliberadamente
+        // deshabilitado (cualquier funcionario puede completar el nodo activo),
+        // coherente con el alcance no comercial del proyecto (RBAC fino diferido).
         String nodoIdActivo = resolverNodoActivo(tramite, req.getFuncionarioId());
 
         // Marcar la sección del nodo como completada
@@ -141,8 +150,7 @@ public class WorkflowEngineService {
                     if (deptoActivo != null) {
                         Optional<SeccionExpediente> match = seccionesExp.stream()
                                 .filter(s -> deptoActivo.equals(s.getDepartamentoId())
-                                        && !"completada".equals(s.getEstado())
-                                        && !"completado".equals(s.getEstado()))
+                                        && !EstadoSeccion.esDerivada(s.getEstado()))
                                 .findFirst();
                         if (match.isPresent()) return match.get();
                     }
@@ -154,7 +162,7 @@ public class WorkflowEngineService {
                     nueva.setNodoId(nodoIdActivo);
                     nueva.setDepartamentoId(deptoActivo);
                     nueva.setOrdenSeccion(seccionesExp.size() + 1);
-                    nueva.setEstado("en_curso");
+                    nueva.setEstado(EstadoSeccion.EN_EJECUCION.getValor());
                     nueva.setFechaAsignacion(LocalDateTime.now());
                     nueva.setFuncionarioId(funcionarioId);
                     return seccionRepository.save(nueva);
@@ -164,7 +172,7 @@ public class WorkflowEngineService {
         if (!nodoIdActivo.equals(seccion.getNodoId())) {
             seccion.setNodoId(nodoIdActivo);
         }
-        seccion.setEstado("completada");
+        seccion.setEstado(EstadoSeccion.DERIVADA.getValor());
         seccion.setFechaCompletado(LocalDateTime.now());
         seccionRepository.save(seccion);
 
@@ -193,8 +201,14 @@ public class WorkflowEngineService {
 
             if (!tramite.getNodosParalellosActivos().isEmpty()) {
                 // Aún hay ramas paralelas activas — esperar
-                tramiteRepository.save(tramite);
-                return tramite;
+                Tramite guardado = tramiteRepository.save(tramite);
+                // Cada rama paralela completada queda en histórico y trazabilidad,
+                // aunque el trámite global todavía no cambie de estado.
+                registrarHistorico(tramiteId, estadoAnterior, guardado.getEstadoActual(),
+                        nodoIdActivo, null, req.getFuncionarioId(), req.getNotas());
+                trazabilidadService.registrar(tramiteId, req.getFuncionarioId(), "completar_rama_paralela",
+                        nodoIdActivo, Map.of("estadoActual", tramite.getEstadoActual()));
+                return guardado;
             }
 
             // Todas las ramas completadas → buscar el JOIN y avanzar desde él
@@ -216,6 +230,45 @@ public class WorkflowEngineService {
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // ACEPTAR / RECEPCIONAR EL NODO ACTUAL
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * El responsable acepta el trámite que llegó a su bandeja: la sección activa
+     * pasa de {@code Pendiente de recepción} a {@code En ejecución} y queda
+     * formalmente a su cargo. Idempotente si ya estaba En ejecución.
+     */
+    public Tramite aceptarTramite(String tramiteId, String funcionarioId) {
+        Tramite tramite = tramiteRepository.findById(tramiteId)
+                .orElseThrow(() -> new IllegalArgumentException("Trámite no encontrado"));
+
+        if (EstadoTramite.esFinalizado(tramite.getEstadoActual())) {
+            throw new IllegalArgumentException("El trámite ya está cerrado");
+        }
+
+        String nodoIdActivo = resolverNodoActivo(tramite, funcionarioId);
+
+        seccionRepository.findByExpedienteIdOrderByOrdenSeccionAsc(tramite.getExpedienteId())
+                .stream()
+                .filter(s -> nodoIdActivo.equals(s.getNodoId()))
+                .findFirst()
+                .ifPresent(s -> {
+                    s.setEstado(EstadoSeccion.EN_EJECUCION.getValor());
+                    s.setFuncionarioId(funcionarioId);
+                    if (s.getFechaAsignacion() == null) {
+                        s.setFechaAsignacion(LocalDateTime.now());
+                    }
+                    seccionRepository.save(s);
+                });
+
+        tramite.setFuncionarioActualId(funcionarioId);
+        tramite = tramiteRepository.save(tramite);
+
+        trazabilidadService.registrar(tramiteId, funcionarioId, "aceptar", nodoIdActivo, Map.of());
+        return tramite;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // MOTOR: AVANZAR DESDE UN NODO
     // ─────────────────────────────────────────────────────────────────────
 
@@ -226,7 +279,7 @@ public class WorkflowEngineService {
 
         if (transiciones.isEmpty()) {
             // Sin salida → cerrar trámite
-            return cerrarTramite(tramite, "Aprobado");
+            return cerrarTramite(tramite, EstadoTramite.APROBADO.getValor());
         }
 
         // Seleccionar la transición según el tipo de nodo origen
@@ -254,8 +307,9 @@ public class WorkflowEngineService {
                 }
 
                 NodoDiagrama nodoSiguiente = encontrarNodoPorId(transicion.getNodoDestinoId(), todosLosNodos);
-                tramite.setEstadoActual(
-                        "si".equals(decisionNormalizada) ? "Derivado" : "Observado");
+                // El nodo decisión solo RUTEA; no cambia el estado global del trámite.
+                // El estado lo fija el nodo destino (procesarNodo): actividad → En curso,
+                // fin → Aprobado. "Observado" global es exclusivo de la acción Observar.
                 yield procesarNodo(tramite, nodoSiguiente, decision, todosLosNodos);
             }
 
@@ -264,12 +318,13 @@ public class WorkflowEngineService {
                 List<String> nodosParalelos = new ArrayList<>();
                 for (FlujoTransicion t : transiciones) {
                     NodoDiagrama rama = encontrarNodoPorId(t.getNodoDestinoId(), todosLosNodos);
-                    desbloquearSeccion(tramite.getExpedienteId(), rama.getId());
+                    desbloquearSeccion(tramite.getExpedienteId(), rama.getId(),
+                            elegirFuncionarioDelDepto(rama.getDepartamentoId()));
                     nodosParalelos.add(rama.getId());
                 }
                 tramite.setNodosParalellosActivos(nodosParalelos);
                 tramite.setNodoActualId(null);   // sin nodo único — hay varios
-                tramite.setEstadoActual("En proceso");
+                tramite.setEstadoActual(EstadoTramite.EN_CURSO.getValor());
                 yield tramite;
             }
 
@@ -286,14 +341,15 @@ public class WorkflowEngineService {
                                   String decision, List<NodoDiagrama> todosLosNodos) {
         return switch (nodo.getTipo()) {
             case "actividad" -> {
-                // Desbloquear la sección de este nodo y asignar
-                desbloquearSeccion(tramite.getExpedienteId(), nodo.getId());
+                // Resolver el funcionario del departamento destino (auto-derivación)
+                String nuevoFuncionarioId = elegirFuncionarioDelDepto(nodo.getDepartamentoId());
+
+                // Desbloquear la sección de este nodo y asignarle el funcionario
+                desbloquearSeccion(tramite.getExpedienteId(), nodo.getId(), nuevoFuncionarioId);
                 tramite.setNodoActualId(nodo.getId());
                 tramite.setNodosParalellosActivos(new ArrayList<>());
-                tramite.setEstadoActual("En proceso");
+                tramite.setEstadoActual(EstadoTramite.EN_CURSO.getValor());
 
-                // Reasignar al funcionario del departamento destino (auto-derivacion)
-                String nuevoFuncionarioId = elegirFuncionarioDelDepto(nodo.getDepartamentoId());
                 tramite.setFuncionarioActualId(nuevoFuncionarioId);
 
                 if (nuevoFuncionarioId != null) {
@@ -332,14 +388,33 @@ public class WorkflowEngineService {
     // HELPERS
     // ─────────────────────────────────────────────────────────────────────
 
-    private void desbloquearSeccion(String expedienteId, String nodoId) {
+    private void desbloquearSeccion(String expedienteId, String nodoId, String funcionarioId) {
         seccionRepository.findByExpedienteIdOrderByOrdenSeccionAsc(expedienteId)
                 .stream()
-                .filter(s -> nodoId.equals(s.getNodoId()) && "bloqueada".equals(s.getEstado()))
+                .filter(s -> {
+                    if (!nodoId.equals(s.getNodoId())) return false;
+                    EstadoSeccion e = EstadoSeccion.from(s.getEstado());
+                    // Reactivar tanto nodos futuros (BLOQUEADA) como re-trabajo por
+                    // decisión 'no'→fork: secciones ya DERIVADA u OBSERVADO.
+                    // NO se pisan secciones EN_EJECUCION/PENDIENTE_RECEPCION (trabajo en curso).
+                    return e == EstadoSeccion.BLOQUEADA
+                            || e == EstadoSeccion.DERIVADA
+                            || e == EstadoSeccion.OBSERVADO;
+                })
                 .findFirst()
                 .ifPresent(s -> {
-                    s.setEstado("en_curso");
+                    // Llega a la bandeja del responsable: queda Pendiente de recepción
+                    // hasta que lo acepte (aceptarTramite -> En ejecución).
+                    s.setEstado(EstadoSeccion.PENDIENTE_RECEPCION.getValor());
                     s.setFechaAsignacion(LocalDateTime.now());
+                    // Re-trabajo: limpiar la fecha de cierre previa para no arrastrar
+                    // la finalización anterior de la sección reactivada.
+                    s.setFechaCompletado(null);
+                    // Poblar el funcionario asignado ya en el desbloqueo, para que el
+                    // guard de ownership del front no bloquee antes de "aceptar".
+                    if (funcionarioId != null) {
+                        s.setFuncionarioId(funcionarioId);
+                    }
                     seccionRepository.save(s);
                 });
     }
@@ -352,7 +427,7 @@ public class WorkflowEngineService {
         tramite.setFechaCierreReal(LocalDateTime.now());
 
         // CU-28: push al cliente al cerrar el tramite.
-        String titulo = "Aprobado".equals(estadoFinal)
+        String titulo = EstadoTramite.APROBADO.getValor().equals(estadoFinal)
             ? "Tu tramite fue aprobado"
             : "Tu tramite fue rechazado";
         String mensaje = "El tramite " + tramite.getCodigo() + " ha sido " + estadoFinal.toLowerCase() + ".";
@@ -396,15 +471,26 @@ public class WorkflowEngineService {
 
     private String resolverNodoActivo(Tramite tramite, String funcionarioId) {
         if (tramite.estaEnParalelo()) {
-            // En paralelo: buscar qué nodo le corresponde al funcionario
+            // En paralelo: priorizar el nodo cuyo departamento esté entre los del
+            // funcionario; si no hay match (o el funcionario no tiene departamentos),
+            // caer al primer nodo activo (mantiene compatibilidad previa).
+            List<String> deptosFuncionario = usuarioRepository.findById(funcionarioId)
+                    .map(Usuario::getDepartamentosIds)
+                    .orElse(null);
+
+            if (deptosFuncionario != null && !deptosFuncionario.isEmpty()) {
+                Optional<String> propio = tramite.getNodosParalellosActivos().stream()
+                        .filter(nodoId -> {
+                            NodoDiagrama n = nodoRepository.findById(nodoId).orElse(null);
+                            return n != null && n.getDepartamentoId() != null
+                                    && deptosFuncionario.contains(n.getDepartamentoId());
+                        })
+                        .findFirst();
+                if (propio.isPresent()) return propio.get();
+            }
+
             return tramite.getNodosParalellosActivos().stream()
-                    .filter(nodoId -> {
-                        NodoDiagrama n = nodoRepository.findById(nodoId).orElse(null);
-                        if (n == null) return false;
-                        // Simplificación para demo: el funcionario puede completar cualquier nodo activo
-                        // En producción: comparar con el departamento del funcionario
-                        return true;
-                    })
+                    .filter(nodoId -> nodoRepository.findById(nodoId).isPresent())
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("No hay nodo paralelo activo para el funcionario"));
         }
@@ -431,8 +517,13 @@ public class WorkflowEngineService {
 
     private String generarCodigo() {
         int year = LocalDateTime.now().getYear();
-        long count = tramiteRepository.count() + 1;
-        return String.format("TR-%d-%05d", year, count);
+        Secuencia sec = mongoTemplate.findAndModify(
+                new Query(Criteria.where("_id").is("tramite-" + year)),
+                new Update().inc("seq", 1),
+                new FindAndModifyOptions().returnNew(true).upsert(true),
+                Secuencia.class,
+                "secuencias");
+        return String.format("TR-%d-%05d", year, sec.getSeq());
     }
 
     public Tramite buscarTramite(String tramiteId) {

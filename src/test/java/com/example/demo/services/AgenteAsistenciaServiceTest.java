@@ -73,7 +73,7 @@ class AgenteAsistenciaServiceTest {
         Tramite t = new Tramite();
         t.setId("t1");
         t.setCodigo("TR-2026-001");
-        t.setEstadoActual("En proceso");
+        t.setEstadoActual("En curso");
         t.setNodoActualId("n1");
         when(tramiteRepo.findById("t1")).thenReturn(Optional.of(t));
 
@@ -81,7 +81,7 @@ class AgenteAsistenciaServiceTest {
         req.setTramiteIdOpcional("t1");
         AgenteResponse r = svc.responder(req, "ROLE_CLIENTE");
 
-        assertThat(r.getRespuesta()).contains("TR-2026-001").contains("En proceso");
+        assertThat(r.getRespuesta()).contains("TR-2026-001").contains("En curso");
         assertThat(r.getAccion().getRuta()).isEqualTo("/cliente/tramites/t1/timeline");
     }
 
@@ -92,7 +92,7 @@ class AgenteAsistenciaServiceTest {
         p1.setNombre("Nueva conexión residencial");
         PoliticaNegocio p2 = new PoliticaNegocio();
         p2.setNombre("Cambio de medidor");
-        when(politicaRepo.findByEstado("ACTIVA")).thenReturn(List.of(p1, p2));
+        when(politicaRepo.findByEstado("activa")).thenReturn(List.of(p1, p2));
 
         req.setConsulta("¿qué políticas hay?");
         AgenteResponse r = svc.responder(req, "ROLE_ADMINISTRADOR");

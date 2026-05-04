@@ -1,5 +1,6 @@
 package com.example.demo.config.seeders;
 
+import com.example.demo.models.EstadoTramite;
 import com.example.demo.models.NodoDiagrama;
 import com.example.demo.models.Tramite;
 import com.example.demo.repositories.DiagramaWorkflowRepository;
@@ -46,7 +47,7 @@ public class TramiteIaPatchSeeder {
 
             // Solo trámites activos reciben predicción de riesgo;
             // los cerrados quedan con valores fijos (bajo + 0.1).
-            boolean cerrado = esEstadoCerrado(t.getEstadoActual());
+            boolean cerrado = EstadoTramite.esFinalizado(t.getEstadoActual());
 
             if (t.getRiesgoDemora() == null || t.getRiesgoDemora().isBlank()) {
                 t.setRiesgoDemora(cerrado ? "bajo" : nivelPorPrioridad(t.getPrioridad()));
@@ -70,12 +71,6 @@ public class TramiteIaPatchSeeder {
             }
         }
         log.info("[Seeder] TramiteIaPatch OK ({} trámites actualizados)", actualizados);
-    }
-
-    private boolean esEstadoCerrado(String estado) {
-        if (estado == null) return false;
-        String e = estado.toLowerCase();
-        return e.contains("complet") || e.contains("rechaz") || e.contains("cancel");
     }
 
     /** prioridad 1 = baja, 2 = media, 3+ = alta (alineado con TramiteSeeder). */

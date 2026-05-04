@@ -83,8 +83,11 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/tramites/mis-tramites").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/tramites/mis-pendientes").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR")
                 .requestMatchers(HttpMethod.GET, "/api/tramites/*/estado").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/tramites/*/resolucion").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/tramites/iniciar").hasAnyRole("CLIENTE", "FUNCIONARIO", "ADMINISTRADOR")
                 .requestMatchers(HttpMethod.POST, "/api/tramites/*/completar-nodo").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR")
+                .requestMatchers(HttpMethod.POST, "/api/tramites/*/aceptar").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR")
+                .requestMatchers(HttpMethod.POST, "/api/tramites/*/reasignar").hasRole("FUNCIONARIO")
                 .requestMatchers(HttpMethod.POST, "/api/tramites/*/derivar").hasRole("FUNCIONARIO")
                 .requestMatchers(HttpMethod.POST, "/api/tramites/*/devolver").hasRole("FUNCIONARIO")
                 .requestMatchers(HttpMethod.POST, "/api/tramites/*/decision-final").hasRole("FUNCIONARIO")
@@ -176,14 +179,16 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOrigins(List.of(
+        // Patrones (admiten comodines y funcionan con allowCredentials=true): cubren
+        // cualquier despliegue/preview de Vercel y el dominio propio, además de dev.
+        cfg.setAllowedOriginPatterns(List.of(
             "http://localhost:4200",
             "http://localhost:4300",
             "http://localhost:8100",
             "http://localhost:3000",
-            "https://web-five-kappa-99.vercel.app",
-            "http://44.213.74.152:8080",
-            "https://44.213.74.152:8443"
+            "https://*.vercel.app",
+            "https://ficctuagrmbolivia.online",
+            "https://*.ficctuagrmbolivia.online"
         ));
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));

@@ -1,6 +1,7 @@
 package com.example.demo.config.seeders;
 
 import com.example.demo.models.Adjunto;
+import com.example.demo.models.EstadoSeccion;
 import com.example.demo.models.SeccionExpediente;
 import com.example.demo.models.TranscripcionVoz;
 import com.example.demo.repositories.AdjuntoRepository;
@@ -37,7 +38,7 @@ public class AdjuntoSeeder {
         List<SeccionExpediente> secciones = seccionRepository.findAll();
 
         secciones.stream()
-                .filter(s -> "completado".equals(s.getEstado()) && s.getOrdenSeccion() == 1)
+                .filter(s -> EstadoSeccion.esDerivada(s.getEstado()) && s.getOrdenSeccion() == 1)
                 .forEach(s -> {
                     crearAdjunto(s.getId(), "cedula_identidad.pdf",
                             "application/pdf", "/uploads/ci/cedula_7654321.pdf",
@@ -48,7 +49,7 @@ public class AdjuntoSeeder {
                 });
 
         secciones.stream()
-                .filter(s -> "completado".equals(s.getEstado()) && s.getOrdenSeccion() == 2)
+                .filter(s -> EstadoSeccion.esDerivada(s.getEstado()) && s.getOrdenSeccion() == 2)
                 .forEach(s -> {
                     crearAdjunto(s.getId(), "informe_inspeccion_tecnica.pdf",
                             "application/pdf", "/uploads/inspecciones/insp_" + s.getId() + ".pdf",
@@ -63,7 +64,7 @@ public class AdjuntoSeeder {
                 });
 
         secciones.stream()
-                .filter(s -> "completado".equals(s.getEstado()) && s.getOrdenSeccion() == 5)
+                .filter(s -> EstadoSeccion.esDerivada(s.getEstado()) && s.getOrdenSeccion() == 5)
                 .forEach(s -> {
                     crearAdjunto(s.getId(), "acta_cierre_conexion.pdf",
                             "application/pdf", "/uploads/actas/acta_cierre_" + s.getId() + ".pdf",

@@ -68,6 +68,7 @@ public class DocumentoArchivoService {
         // Anti-duplicado dentro del mismo trámite/actividad
         for (DocumentoArchivo existente :
                 docRepo.findByTramiteIdAndActividadIdAndActivoTrue(tramiteId, actividadId)) {
+            if (existente.getVersionActualId() == null) continue;
             var v = versionRepo.findById(existente.getVersionActualId()).orElse(null);
             if (v != null && hash.equals(v.getHashSha256())) {
                 throw new IllegalArgumentException(
@@ -134,6 +135,83 @@ public class DocumentoArchivoService {
                        "tamanoBytes", bytes.length));
 
         return toResponse(doc, v, null, null);
+    }
+
+    /**
+     * Sube el documento de RESOLUCIÓN entregable de un trámite (lo que el cliente
+     * descarga al finalizar). No valida permiso de punto de atención: lo sube el
+     * responsable que aprueba, ya autorizado a cerrar el trámite. Marca
+     * {@code esResolucion=true} en el {@link DocumentoArchivo} resultante.
+     */
+    public DocumentoArchivo subirResolucion(String repositorioId,
+                                            String tramiteId,
+                                            String nodoId,
+                                            String tipoDocumento,
+                                            String nombreLogico,
+                                            MultipartFile archivo,
+                                            String usuarioId,
+                                            String rol,
+                                            String ip,
+                                            String userAgent) {
+
+        RepositorioDocumental repo = repositorioService.buscarPorId(repositorioId);
+
+        byte[] bytes = leerBytes(archivo);
+        String hash = sha256(bytes);
+
+        String uuid = UUID.randomUUID().toString();
+        String ext = extensionDe(archivo.getOriginalFilename());
+        String s3Key = repo.getBucketKey()
+                + "tramites/" + tramiteId + "/resolucion/"
+                + uuid + "-v1" + ext;
+
+        DocumentoArchivo doc = new DocumentoArchivo();
+        doc.setRepositorioId(repositorioId);
+        doc.setPoliticaId(repo.getPoliticaId());
+        doc.setTramiteId(tramiteId);
+        doc.setNodoId(nodoId);
+        doc.setNombreLogico(nombreLogico);
+        doc.setTipoDocumento(tipoDocumento);
+        doc.setObligatorio(false);
+        doc.setEsResolucion(true);
+        doc.setNumeroVersionActual(1);
+        doc.setCreadoPorId(usuarioId);
+        doc.setFechaCreacion(LocalDateTime.now());
+        doc.setActivo(true);
+        doc = docRepo.save(doc);
+
+        try {
+            s3.upload(s3Key, new ByteArrayInputStream(bytes),
+                    archivo.getContentType(), bytes.length);
+        } catch (RuntimeException ex) {
+            docRepo.deleteById(doc.getId());
+            throw ex;
+        }
+
+        VersionDocumento v = new VersionDocumento();
+        v.setDocumentoArchivoId(doc.getId());
+        v.setNumeroVersion(1);
+        v.setS3Bucket(s3.bucket());
+        v.setS3Key(s3Key);
+        v.setTamanoBytes(bytes.length);
+        v.setMimeType(archivo.getContentType());
+        v.setHashSha256(hash);
+        v.setAutorId(usuarioId);
+        v.setFechaCreacion(LocalDateTime.now());
+        v = versionRepo.save(v);
+
+        doc.setVersionActualId(v.getId());
+        docRepo.save(doc);
+
+        repositorioService.incrementarTotales(repositorioId, bytes.length);
+
+        auditoria.registrar(doc.getId(), v.getId(), usuarioId, rol,
+                AuditoriaDocumentoService.SUBIDA, ip, userAgent,
+                Map.of("nombreLogico", nombreLogico,
+                       "esResolucion", true,
+                       "tamanoBytes", bytes.length));
+
+        return doc;
     }
 
     public List<DocumentoArchivo> listarPorRepositorio(String repositorioId) {

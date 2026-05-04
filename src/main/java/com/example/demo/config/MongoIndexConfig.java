@@ -41,6 +41,12 @@ public class MongoIndexConfig {
                         .on("destinatarioId", Sort.Direction.ASC)
                         .on("leida", Sort.Direction.ASC));
 
+        // Notificaciones — por destinatario ordenadas por fecha de creación
+        mongoTemplate.indexOps("notificaciones")
+                .ensureIndex(new Index()
+                        .on("destinatarioId", Sort.Direction.ASC)
+                        .on("fechaCreacion", Sort.Direction.DESC));
+
         // Estados históricos por trámite
         mongoTemplate.indexOps("estados_historicos")
                 .ensureIndex(new Index()

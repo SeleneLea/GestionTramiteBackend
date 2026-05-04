@@ -6,6 +6,8 @@ import com.example.demo.dto.CompletarSeccionRequest;
 import com.example.demo.dto.GuardarSeccionRequest;
 import com.example.demo.models.CampoPlantilla;
 import com.example.demo.models.CampoSeccion;
+import com.example.demo.models.EstadoSeccion;
+import com.example.demo.models.EstadoTramite;
 import com.example.demo.models.ExpedienteDigital;
 import com.example.demo.models.FormularioPlantilla;
 import com.example.demo.models.SeccionExpediente;
@@ -70,7 +72,7 @@ public class ExpedienteService {
             // copiamos la plantilla del nodo a campos con valor vacío para que el
             // funcionario sepa visualmente qué tiene que llenar (CU-13c).
             List<CampoSeccion> campos = campoRepository.findBySeccionId(seccion.getId());
-            if (campos.isEmpty() && "en_curso".equals(seccion.getEstado())) {
+            if (campos.isEmpty() && EstadoSeccion.esActivaParaTrabajo(seccion.getEstado())) {
                 campos = instanciarCamposDesdeNodo(seccion);
             }
             secMap.put("campos", enriquecerConPlantilla(campos));
@@ -90,8 +92,18 @@ public class ExpedienteService {
         SeccionExpediente seccion = seccionRepository.findById(seccionId)
                 .orElseThrow(() -> new IllegalArgumentException("Seccion no encontrada"));
 
-        if (!"en_curso".equals(seccion.getEstado())) {
-            throw new IllegalStateException("Solo se pueden editar secciones en estado en_curso");
+        // Guard de trámite finalizado (WF-07): no se puede editar un expediente
+        // cuyo trámite ya está cerrado. Cargamos el trámite vía expediente.
+        ExpedienteDigital exp = expedienteRepository.findById(seccion.getExpedienteId())
+                .orElseThrow(() -> new IllegalStateException("Expediente no encontrado"));
+        Tramite tramite = tramiteRepository.findById(exp.getTramiteId())
+                .orElseThrow(() -> new IllegalStateException("Tramite no encontrado"));
+        if (EstadoTramite.esFinalizado(tramite.getEstadoActual())) {
+            throw new IllegalStateException("El tramite ya esta cerrado");
+        }
+
+        if (!EstadoSeccion.esActivaParaTrabajo(seccion.getEstado())) {
+            throw new IllegalStateException("Solo se pueden editar secciones recibidas o en ejecución");
         }
 
         if (request.getCampos() != null) {
@@ -107,6 +119,11 @@ public class ExpedienteService {
         }
 
         seccion.setFuncionarioId(funcionarioId);
+        // Editar implica tomar la sección: Pendiente de recepción / Observado → En ejecución.
+        EstadoSeccion estadoSec = EstadoSeccion.from(seccion.getEstado());
+        if (estadoSec == EstadoSeccion.PENDIENTE_RECEPCION || estadoSec == EstadoSeccion.OBSERVADO) {
+            seccion.setEstado(EstadoSeccion.EN_EJECUCION.getValor());
+        }
         return seccionRepository.save(seccion);
     }
 
@@ -191,15 +208,26 @@ public class ExpedienteService {
         SeccionExpediente seccion = seccionRepository.findById(seccionId)
                 .orElseThrow(() -> new IllegalArgumentException("Seccion no encontrada"));
 
-        seccion.setEstado("completada");
-        seccion.setFuncionarioId(funcionarioId);
-        seccion.setFechaCompletado(LocalDateTime.now());
-        seccionRepository.save(seccion);
-
+        // Validar ANTES de mutar la sección (WF-07): cargar expediente + trámite
+        // y rechazar si el trámite ya está cerrado o la sección no es trabajable.
         ExpedienteDigital exp = expedienteRepository.findById(seccion.getExpedienteId())
                 .orElseThrow(() -> new IllegalStateException("Expediente no encontrado"));
         Tramite tramite = tramiteRepository.findById(exp.getTramiteId())
                 .orElseThrow(() -> new IllegalStateException("Tramite no encontrado"));
+
+        if (EstadoTramite.esFinalizado(tramite.getEstadoActual())) {
+            throw new IllegalStateException("El tramite ya esta cerrado");
+        }
+
+        if (!EstadoSeccion.esActivaParaTrabajo(seccion.getEstado())) {
+            throw new IllegalStateException("Solo se pueden completar secciones recibidas o en ejecución");
+        }
+
+        // Validaciones superadas: recién ahora mutamos la sección a DERIVADA.
+        seccion.setEstado(EstadoSeccion.DERIVADA.getValor());
+        seccion.setFuncionarioId(funcionarioId);
+        seccion.setFechaCompletado(LocalDateTime.now());
+        seccionRepository.save(seccion);
 
         CompletarNodoRequest engineRequest = new CompletarNodoRequest();
         engineRequest.setFuncionarioId(funcionarioId);

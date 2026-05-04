@@ -5,50 +5,11 @@
 
 db = db.getSiblingDB('tramites_db');
 
-// Limpiar colecciones si existen
-db.usuarios.deleteMany({});
+// B7: este script se neutralizó. A pesar del nombre "usuarios-correctos",
+// los hashes BCrypt que insertaba eran INVÁLIDOS (el de admin no correspondía a
+// 'admin12345' y el de cliente '$2a$10$abcdef...' es un salt corrupto que bcrypt
+// rechaza), por lo que rompía el login con las credenciales documentadas.
+// La fuente de verdad de usuarios es UsuarioSeeder.java (passwordEncoder.encode).
+// NO se borra ni se inserta nada aquí.
 
-// Obtener IDs de roles
-var rolAdmin = db.roles.findOne({ nombre: "Administrador" });
-var rolCliente = db.roles.findOne({ nombre: "Cliente" });
-var rolFuncionario = db.roles.findOne({ nombre: "Funcionario" });
-
-// Hashes BCrypt (generados previamente para las contraseñas indicadas):
-// admin12345 -> $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWq
-// cliente12345 -> $2a$10$Xk/y5Q6X5M8J8X8J8X8J8X8J8X8J8X8J8X8J8X8J8X8J8X8J8X8J8
-// func12345 -> $2a$10$Y7L/z7R7Y9K9Y9K9Y9K9Y9K9Y9K9Y9K9Y9K9Y9K9Y9K9Y9K9Y9K9Y
-
-// Insertar usuarios
-db.usuarios.insertMany([
-    {
-        nombre: "Admin",
-        apellido: "Sistema",
-        email: "admin@cre.bo",
-        passwordHash: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWq",
-        rolId: rolAdmin._id,
-        tipo: "administrador",
-        telefono: null,
-        departamentosIds: [],
-        activo: true,
-        fechaRegistro: new Date(),
-        ultimoAcceso: null
-    },
-    {
-        nombre: "Juan",
-        apellido: "Pérez",
-        email: "cliente@cre.bo",
-        passwordHash: "$2a$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-        rolId: rolCliente._id,
-        tipo: "cliente",
-        telefono: "+591 123456789",
-        departamentosIds: [],
-        activo: true,
-        fechaRegistro: new Date(),
-        ultimoAcceso: null
-    }
-]);
-
-print("=== Usuarios insertados con contraseñas correctas ===");
-print("Usuarios creados: " + db.usuarios.countDocuments());
-print("Usuario admin: email='admin@cre.bo', password='admin12345'");
-print("Usuario cliente: email='cliente@cre.bo', password='cliente12345'");
+print("=== 03-usuarios-correctos.js: no-op (usuarios los crea UsuarioSeeder.java) ===");

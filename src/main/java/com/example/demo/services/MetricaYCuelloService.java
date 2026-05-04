@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -43,7 +44,7 @@ public class MetricaYCuelloService {
         m.setFechaInicioActividad(inicio);
         m.setFechaFinActividad(fin);
         m.setTiempoSegundos(segundos);
-        m.setSuperoSla(segundos > slaSegundos);
+        m.setSuperoSla(slaSegundos > 0 && segundos > slaSegundos);
 
         metricaRepo.save(m);
     }
@@ -57,15 +58,20 @@ public class MetricaYCuelloService {
             if (metricas.size() < 5) {
                 continue;
             }
+            if (act.getSlaHoras() <= 0) {
+                continue;
+            }
 
             double promedio = metricas.stream().mapToLong(MetricaTiempo::getTiempoSegundos).average().orElse(0.0);
             double slaSegundos = act.getSlaHoras() * 3600.0;
 
             if (promedio > slaSegundos) {
-                CuelloBotella cb = new CuelloBotella();
+                String periodo = LocalDate.now().toString();
+                CuelloBotella cb = cuelloRepo.findByActividadIdAndPeriodo(act.getId(), periodo)
+                        .orElseGet(CuelloBotella::new);
                 cb.setActividadId(act.getId());
                 cb.setDepartamentoId(act.getDepartamentoId());
-                cb.setPeriodo("dia");
+                cb.setPeriodo(periodo);
                 cb.setTramitesAcumulados(metricas.size());
                 cb.setTiempoPromedio((float) promedio);
                 cb.setTiempoEsperado((float) slaSegundos);

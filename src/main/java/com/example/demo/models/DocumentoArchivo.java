@@ -54,4 +54,7 @@ public class DocumentoArchivo {
     private LocalDateTime fechaCreacion;
 
     private boolean activo;
+
+    /** {@code true} si es el documento de resolución entregable del trámite. */
+    private boolean esResolucion;
 }

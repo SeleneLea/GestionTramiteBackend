@@ -6,6 +6,7 @@ import com.example.demo.dto.IniciarTramiteRequest;
 import com.example.demo.models.Actividad;
 import com.example.demo.models.Documento;
 import com.example.demo.models.EstadoHistorico;
+import com.example.demo.models.EstadoSeccion;
 import com.example.demo.models.NodoDiagrama;
 import com.example.demo.models.SeccionExpediente;
 import com.example.demo.models.Tramite;
@@ -19,10 +20,12 @@ import com.example.demo.repositories.PoliticaNegocioRepository;
 import com.example.demo.repositories.SeccionExpedienteRepository;
 import com.example.demo.repositories.TramiteRepository;
 import com.example.demo.repositories.UsuarioRepository;
+import com.example.demo.services.DocumentoArchivoService;
 import com.example.demo.services.IaProxyService;
 import com.example.demo.services.WorkflowEngineService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -51,6 +54,7 @@ public class WorkflowController {
     @Autowired private EstadoHistoricoRepository historicoRepository;
     @Autowired private ActividadRepository actividadRepository;
     @Autowired private DocumentoRepository documentoRepository;
+    @Autowired private DocumentoArchivoService documentoArchivoService;
     /** CU-44 — proxy al microservicio para ordenar la bandeja por IA. Opcional. */
     @Autowired(required = false) private IaProxyService iaProxy;
 
@@ -78,8 +82,21 @@ public class WorkflowController {
         description = "El funcionario indica que terminó su sección. El motor evalúa el siguiente paso: avanza linealmente, evalúa condición, activa fork o cierra el trámite."
     )
     public ResponseEntity<Tramite> completarNodo(@PathVariable String tramiteId,
-                                                  @Valid @RequestBody CompletarNodoRequest req) {
+                                                  @Valid @RequestBody CompletarNodoRequest req,
+                                                  Authentication auth) {
+        req.setFuncionarioId(auth.getName());
         return ResponseEntity.ok(workflowEngine.completarNodo(tramiteId, req));
+    }
+
+    @PostMapping("/{tramiteId}/aceptar")
+    @PreAuthorize("hasAnyRole('FUNCIONARIO','ADMINISTRADOR')")
+    @Operation(
+        summary = "Aceptar (recepcionar) el trámite",
+        description = "El responsable acepta el trámite que llegó a su bandeja: la sección activa pasa de 'Pendiente de recepción' a 'En ejecución' y queda a su cargo."
+    )
+    public ResponseEntity<Tramite> aceptar(@PathVariable String tramiteId,
+                                           Authentication auth) {
+        return ResponseEntity.ok(workflowEngine.aceptarTramite(tramiteId, auth.getName()));
     }
 
     @GetMapping("/{tramiteId}/estado")
@@ -100,6 +117,10 @@ public class WorkflowController {
         resp.put("nodoActualId", t.getNodoActualId());
         resp.put("enParalelo", t.estaEnParalelo());
         resp.put("nodosParalellosActivos", t.getNodosParalellosActivos());
+        // Documento de resolución entregable (si el trámite ya lo produjo).
+        resp.put("documentoResolucionId", t.getDocumentoResolucionId());
+        resp.put("tipoResolucion", t.getTipoResolucion());
+        resp.put("fechaResolucion", t.getFechaResolucion());
 
         // Política y cliente (nombres resueltos)
         if (t.getPoliticaId() != null) {
@@ -138,7 +159,7 @@ public class WorkflowController {
                                 nodoActual.put("fechaInicio", s.getFechaAsignacion());
                             });
                 }
-                nodoActual.putIfAbsent("estado", "en_curso");
+                nodoActual.putIfAbsent("estado", EstadoSeccion.EN_EJECUCION.getValor());
                 resp.put("nodoActual", nodoActual);
             });
         }
@@ -150,7 +171,7 @@ public class WorkflowController {
                     .findByExpedienteIdOrderByOrdenSeccionAsc(t.getExpedienteId());
             if (!secciones.isEmpty()) {
                 long completadas = secciones.stream()
-                        .filter(s -> "completada".equals(s.getEstado()))
+                        .filter(s -> EstadoSeccion.esDerivada(s.getEstado()))
                         .count();
                 progreso = (int) Math.round(100.0 * completadas / secciones.size());
             }
@@ -286,7 +307,7 @@ public class WorkflowController {
                 });
             }
         } else {
-            dto.setEstadoSeccion("bloqueada");
+            dto.setEstadoSeccion(EstadoSeccion.BLOQUEADA.getValor());
         }
 
         return dto;
@@ -298,6 +319,34 @@ public class WorkflowController {
         dto.setNombre(d.getNombre());
         dto.setDescripcion(d.getDescripcion());
         return dto;
+    }
+
+    @GetMapping("/{tramiteId}/resolucion")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+        summary = "Descargar el documento de resolución del trámite",
+        description = "Devuelve una URL firmada al documento de resolución que el trámite entregó al finalizar (lo que el cliente descarga)."
+    )
+    public ResponseEntity<Map<String, Object>> resolucion(@PathVariable String tramiteId,
+                                                          Authentication auth,
+                                                          HttpServletRequest httpRequest) {
+        Tramite t = workflowEngine.buscarTramite(tramiteId);
+        if (t.getDocumentoResolucionId() == null) {
+            return ResponseEntity.notFound().build();
+        }
+        String rol = auth.getAuthorities().stream()
+                .findFirst().map(a -> a.getAuthority()).orElse("");
+        DocumentoArchivoService.PreviewData preview = documentoArchivoService.generarPreview(
+                t.getDocumentoResolucionId(), auth.getName(), rol,
+                httpRequest.getRemoteAddr(), httpRequest.getHeader("User-Agent"));
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("url", preview.urlPreview());
+        resp.put("mimeType", preview.mimeType());
+        resp.put("expiraEn", preview.expiraEn());
+        resp.put("tipoResolucion", t.getTipoResolucion());
+        resp.put("fechaResolucion", t.getFechaResolucion());
+        return ResponseEntity.ok(resp);
     }
 
     @GetMapping("/mis-tramites")
@@ -394,6 +443,8 @@ public class WorkflowController {
         m.put("fechaLimite", t.getFechaEstimadaCierre());
         m.put("fechaCierreReal", t.getFechaCierreReal());
         m.put("nodoActualId", t.getNodoActualId());
+        m.put("documentoResolucionId", t.getDocumentoResolucionId());
+        m.put("tipoResolucion", t.getTipoResolucion());
         if (t.getPoliticaId() != null) {
             politicaRepository.findById(t.getPoliticaId())
                     .ifPresent(p -> m.put("politicaNombre", p.getNombre()));
@@ -415,7 +466,7 @@ public class WorkflowController {
             int progreso = 0;
             if (!secciones.isEmpty()) {
                 long completadas = secciones.stream()
-                        .filter(s -> "completada".equals(s.getEstado()))
+                        .filter(s -> EstadoSeccion.esDerivada(s.getEstado()))
                         .count();
                 progreso = (int) Math.round(100.0 * completadas / secciones.size());
             }
