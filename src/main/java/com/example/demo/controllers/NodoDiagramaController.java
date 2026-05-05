@@ -54,10 +54,26 @@ public class NodoDiagramaController {
 
     @PutMapping("/nodos/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @Operation(summary = "Reemplazar un nodo (requiere el nodo completo)")
     public ResponseEntity<NodoDiagrama> actualizar(@PathVariable String id,
                                                     @Valid @RequestBody NodoDiagramaRequest req,
                                                     Authentication auth) {
         NodoDiagrama actualizado = nodoService.actualizar(id, req);
+        collab.broadcast(actualizado.getDiagramaId(), "nodo-actualizado",
+                actualizado, auth != null ? auth.getName() : null);
+        return ResponseEntity.ok(actualizado);
+    }
+
+    @PatchMapping("/nodos/{id}")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @Operation(summary = "Actualización parcial de un nodo",
+               description = "Solo actualiza los campos enviados (merge). Ideal para cambios "
+                       + "incrementales del editor, p.ej. mover un nodo (solo 'posicion').")
+    public ResponseEntity<NodoDiagrama> actualizarParcial(
+            @PathVariable String id,
+            @Valid @RequestBody com.example.demo.dto.NodoDiagramaPatchRequest req,
+            Authentication auth) {
+        NodoDiagrama actualizado = nodoService.actualizarParcial(id, req);
         collab.broadcast(actualizado.getDiagramaId(), "nodo-actualizado",
                 actualizado, auth != null ? auth.getName() : null);
         return ResponseEntity.ok(actualizado);

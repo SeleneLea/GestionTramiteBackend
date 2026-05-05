@@ -89,6 +89,36 @@ public class NodoDiagramaService {
         return nodoRepository.save(n);
     }
 
+    /**
+     * Actualización PARCIAL (PATCH): solo sobrescribe los campos presentes (no
+     * nulos), conservando el resto. Para los cambios incrementales del editor
+     * (p.ej. arrastrar un nodo envía solo {@code posicion}) sin tener que mandar
+     * el nodo completo. Misma guarda de estado 'borrador' que {@link #actualizar}.
+     */
+    public NodoDiagrama actualizarParcial(String id, com.example.demo.dto.NodoDiagramaPatchRequest req) {
+        NodoDiagrama n = nodoRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Nodo no encontrado"));
+
+        var diagrama = diagramaRepository.findById(n.getDiagramaId())
+                .orElseThrow(() -> new IllegalStateException("Diagrama del nodo no existe"));
+
+        if (!"borrador".equals(diagrama.getEstado())) {
+            throw new IllegalArgumentException(
+                    "Solo se puede modificar nodos de un diagrama en 'borrador'");
+        }
+
+        if (req.getNombre() != null) n.setNombre(req.getNombre());
+        if (req.getTipo() != null) n.setTipo(req.getTipo());
+        if (req.getActividadId() != null) n.setActividadId(req.getActividadId());
+        if (req.getDepartamentoId() != null) n.setDepartamentoId(req.getDepartamentoId());
+        if (req.getSwimlane() != null) n.setSwimlane(req.getSwimlane());
+        if (req.getFormularioPlantillaId() != null) n.setFormularioPlantillaId(req.getFormularioPlantillaId());
+        if (req.getPosicion() != null) n.setPosicion(req.getPosicion());
+        if (req.getOrden() != null) n.setOrden(req.getOrden());
+
+        return nodoRepository.save(n);
+    }
+
     public void eliminar(String id) {
         NodoDiagrama n = nodoRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Nodo no encontrado"));
