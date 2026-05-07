@@ -7,6 +7,7 @@ import com.example.demo.models.Actividad;
 import com.example.demo.models.Documento;
 import com.example.demo.models.EstadoHistorico;
 import com.example.demo.models.EstadoSeccion;
+import com.example.demo.models.FlujoTransicion;
 import com.example.demo.models.NodoDiagrama;
 import com.example.demo.models.SeccionExpediente;
 import com.example.demo.models.Tramite;
@@ -15,6 +16,7 @@ import com.example.demo.repositories.DepartamentoRepository;
 import com.example.demo.repositories.DocumentoRepository;
 import com.example.demo.repositories.EstadoHistoricoRepository;
 import com.example.demo.repositories.ExpedienteDigitalRepository;
+import com.example.demo.repositories.FlujoTransicionRepository;
 import com.example.demo.repositories.NodoDiagramaRepository;
 import com.example.demo.repositories.PoliticaNegocioRepository;
 import com.example.demo.repositories.SeccionExpedienteRepository;
@@ -51,6 +53,7 @@ public class WorkflowController {
     @Autowired private UsuarioRepository usuarioRepository;
     @Autowired private ExpedienteDigitalRepository expedienteRepository;
     @Autowired private SeccionExpedienteRepository seccionRepository;
+    @Autowired private FlujoTransicionRepository flujoRepository;
     @Autowired private EstadoHistoricoRepository historicoRepository;
     @Autowired private ActividadRepository actividadRepository;
     @Autowired private DocumentoRepository documentoRepository;
@@ -164,6 +167,49 @@ public class WorkflowController {
             });
         }
 
+        // Look-ahead: si el nodo siguiente a la actividad actual es un 'decision'
+        // (if), exponer su pregunta + ramas para que el funcionario responda Sí/No
+        // al avanzar. El motor (avanzarDesde case 'decision') enruta luego por la
+        // etiqueta de la transición elegida. El funcionario solo ve la pregunta,
+        // nunca el formulario del paso posterior.
+        if (t.getNodoActualId() != null) {
+            List<FlujoTransicion> salientes = flujoRepository.findByNodoOrigenId(t.getNodoActualId());
+            // El motor (avanzarDesde case actividad) toma la primera transición; usamos
+            // la misma selección para que el look-ahead coincida con el ruteo real.
+            if (!salientes.isEmpty()) {
+                nodoRepository.findById(salientes.get(0).getNodoDestinoId())
+                        .filter(dest -> "decision".equals(dest.getTipo()))
+                        .ifPresent(decision -> {
+                            List<FlujoTransicion> ramas = flujoRepository.findByNodoOrigenId(decision.getId());
+                            // Si alguna rama cierra el trámite (destino 'fin'), NO ofrecemos la
+                            // decisión inline: ese cierre debe pasar por "Aprobar" (decision-final),
+                            // que valida/exige el documento de resolución.
+                            boolean ramaTerminal = ramas.stream().anyMatch(r ->
+                                    nodoRepository.findById(r.getNodoDestinoId())
+                                            .map(nd -> "fin".equals(nd.getTipo()))
+                                            .orElse(false));
+                            if (ramaTerminal) return;
+                            Map<String, Object> dec = new HashMap<>();
+                            dec.put("nodoId", decision.getId());
+                            dec.put("pregunta", decision.getNombre());
+                            List<Map<String, Object>> opciones = ramas
+                                    .stream()
+                                    .map(tr -> {
+                                        Map<String, Object> op = new HashMap<>();
+                                        String etiqueta = tr.getEtiqueta() != null ? tr.getEtiqueta() : "";
+                                        op.put("valor", etiqueta);
+                                        op.put("etiqueta", capitalizarRama(etiqueta));
+                                        nodoRepository.findById(tr.getNodoDestinoId())
+                                                .ifPresent(nd -> op.put("destinoNombre", nd.getNombre()));
+                                        return op;
+                                    })
+                                    .toList();
+                            dec.put("opciones", opciones);
+                            resp.put("decisionSiguiente", dec);
+                        });
+            }
+        }
+
         // Progreso = secciones completadas / total
         int progreso = 0;
         if (t.getExpedienteId() != null) {
@@ -199,6 +245,15 @@ public class WorkflowController {
         resp.put("historial", historial);
 
         return ResponseEntity.ok(resp);
+    }
+
+    /** Etiqueta legible de una rama del nodo decisión (si/no → Sí/No). */
+    private String capitalizarRama(String etiqueta) {
+        if (etiqueta == null || etiqueta.isBlank()) return etiqueta;
+        String e = etiqueta.trim().toLowerCase();
+        if (e.equals("si")) return "Sí";
+        if (e.equals("no")) return "No";
+        return etiqueta.substring(0, 1).toUpperCase() + etiqueta.substring(1);
     }
 
     @GetMapping("/{tramiteId}/flujo-completo")

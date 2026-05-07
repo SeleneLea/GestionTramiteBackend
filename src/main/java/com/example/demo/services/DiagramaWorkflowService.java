@@ -113,6 +113,23 @@ public class DiagramaWorkflowService {
                         "Nodo '" + n.getNombre() + "' no tiene transición saliente");
             }
         }
+
+        // Reglas de topología del nodo de decisión (if): defensa al publicar, por si
+        // hay datos previos (seed/IA) que violen lo que ya bloquea agregarTransicion.
+        java.util.Map<String, String> tipoPorNodo = new java.util.HashMap<>();
+        for (NodoDiagrama n : nodos) tipoPorNodo.put(n.getId(), n.getTipo());
+        for (var t : flujoRepository.findByDiagramaId(d.getId())) {
+            String tipoOrigen = tipoPorNodo.get(t.getNodoOrigenId());
+            if (!"decision".equals(tipoPorNodo.get(t.getNodoDestinoId()))) continue;
+            if ("fork".equals(tipoOrigen)) {
+                throw new IllegalArgumentException(
+                        "Topología no soportada: un 'fork' conecta directo a una 'decision'. Pon una actividad entre ellos.");
+            }
+            if ("decision".equals(tipoOrigen)) {
+                throw new IllegalArgumentException(
+                        "Topología no soportada: dos 'decisiones' encadenadas. Pon una actividad entre ellas.");
+            }
+        }
     }
 
     public void eliminar(String id) {

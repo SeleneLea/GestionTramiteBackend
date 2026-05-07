@@ -154,8 +154,10 @@ public class PromptFlowService {
                     .findFirst().orElseThrow();
 
             NodoDiagrama actividadAnterior = null;
-            if (tieneParalelo && join != null) {
-                actividadAnterior = join;
+            if (tieneParalelo && fork != null) {
+                // Re-trabajo del paralelo: la rama 'no' reactiva el fork (no el join,
+                // que se atraviesa solo y crearía un ciclo join<->decision infinito).
+                actividadAnterior = fork;
             } else {
                 int decisionIdx = nodosCreados.indexOf(decision);
                 if (decisionIdx > 0) {
@@ -166,6 +168,20 @@ public class PromptFlowService {
             if (actividadAnterior != null) {
                 transicionesCreadas.add(crearTransicion(d.getId(), decision.getId(),
                         actividadAnterior.getId(), "iterativo", "no"));
+            }
+
+            // El camino lineal ya crea la rama 'si' (decision->siguiente) en el bucle
+            // secuencial; el camino paralelo arma las transiciones a mano y la omite.
+            // La agregamos hacia 'fin' para que el rombo tenga sus dos salidas
+            // (si->fin, no->retrabajo) y el motor pueda enrutar la respuesta 'si'.
+            if (tieneParalelo) {
+                NodoDiagrama fin = nodosCreados.stream()
+                        .filter(n -> "fin".equals(n.getTipo()))
+                        .findFirst().orElse(null);
+                if (fin != null) {
+                    transicionesCreadas.add(crearTransicion(
+                            d.getId(), decision.getId(), fin.getId(), "condicional", "si"));
+                }
             }
         }
 

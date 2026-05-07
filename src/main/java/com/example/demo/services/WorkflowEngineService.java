@@ -294,7 +294,7 @@ public class WorkflowEngineService {
 
             case "decision" -> {
                 // Elegir transición según la decisión del funcionario ("si" o "no")
-                String decisionNormalizada = (decision != null ? decision : "si").toLowerCase();
+                String decisionNormalizada = (decision != null && !decision.isBlank() ? decision.trim() : "si").toLowerCase();
                 FlujoTransicion transicion = transiciones.stream()
                         .filter(t -> decisionNormalizada.equals(
                                 t.getEtiqueta() != null ? t.getEtiqueta().toLowerCase() : ""))
@@ -302,8 +302,8 @@ public class WorkflowEngineService {
                     .orElse(null);
 
                 if (transicion == null) {
-                    throw new IllegalStateException("Excepcion de Regla de Negocio: transicion inalcanzable para decision '"
-                        + decisionNormalizada + "'");
+                    throw new IllegalArgumentException("La respuesta '" + decisionNormalizada
+                        + "' no corresponde a ninguna rama del nodo de decision (se espera 'si' o 'no').");
                 }
 
                 NodoDiagrama nodoSiguiente = encontrarNodoPorId(transicion.getNodoDestinoId(), todosLosNodos);

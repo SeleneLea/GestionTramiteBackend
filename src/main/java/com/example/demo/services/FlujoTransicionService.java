@@ -44,6 +44,19 @@ public class FlujoTransicionService {
             throw new IllegalArgumentException("No se puede apuntar al nodo de inicio");
         }
 
+        // Reglas de topología del nodo de decisión (if): el motor no puede mostrar ni
+        // enrutar bien una pregunta en estas posiciones (ver WorkflowEngineService).
+        if ("decision".equals(destino.getTipo())) {
+            if ("fork".equals(origen.getTipo())) {
+                throw new IllegalArgumentException(
+                        "Un 'fork' no puede conectar directo a una 'decision'; una rama del fork debe ir a una actividad.");
+            }
+            if ("decision".equals(origen.getTipo())) {
+                throw new IllegalArgumentException(
+                        "No se pueden encadenar dos 'decisiones' directamente; coloca una actividad entre ellas.");
+            }
+        }
+
         String etiquetaNormalizada = normalizarEtiqueta(req.getEtiqueta());
 
         if ("decision".equals(origen.getTipo())) {
