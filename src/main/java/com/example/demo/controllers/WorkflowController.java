@@ -148,6 +148,15 @@ public class WorkflowController {
                 nodoActual.put("departamentoId", nodo.getDepartamentoId());
                 nodoActual.put("actividadId", nodo.getActividadId());
                 nodoActual.put("funcionarioId", t.getFuncionarioActualId());
+                // Salidas que el admin configuró para la actividad de este nodo: el
+                // panel del funcionario solo muestra los botones de estas acciones.
+                if (nodo.getActividadId() != null) {
+                    actividadRepository.findById(nodo.getActividadId())
+                            .ifPresent(a -> nodoActual.put("salidasPosibles",
+                                    a.getSalidasPosibles() != null
+                                            ? a.getSalidasPosibles()
+                                            : java.util.Collections.emptyList()));
+                }
                 if (nodo.getDepartamentoId() != null) {
                     departamentoRepository.findById(nodo.getDepartamentoId())
                             .ifPresent(d -> nodoActual.put("departamentoNombre", d.getNombre()));
