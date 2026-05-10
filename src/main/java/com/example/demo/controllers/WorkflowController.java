@@ -148,14 +148,21 @@ public class WorkflowController {
                 nodoActual.put("departamentoId", nodo.getDepartamentoId());
                 nodoActual.put("actividadId", nodo.getActividadId());
                 nodoActual.put("funcionarioId", t.getFuncionarioActualId());
-                // Salidas que el admin configuró para la actividad de este nodo: el
-                // panel del funcionario solo muestra los botones de estas acciones.
-                if (nodo.getActividadId() != null) {
-                    actividadRepository.findById(nodo.getActividadId())
-                            .ifPresent(a -> nodoActual.put("salidasPosibles",
-                                    a.getSalidasPosibles() != null
-                                            ? a.getSalidasPosibles()
-                                            : java.util.Collections.emptyList()));
+                // Salidas posibles DERIVADAS de la posición del nodo en el flujo
+                // (no se configuran a mano): si su siguiente es un cierre (fin) salen
+                // 'aprobar'/'rechazar'; si avanza a otro paso sale 'completar'.
+                // 'observar' (devolver) está siempre disponible.
+                {
+                    List<FlujoTransicion> salidasNodo = flujoRepository.findByNodoOrigenId(nodo.getId());
+                    // Es un nodo de cierre si no tiene salida (último paso) o si alguna
+                    // de sus salidas lleva directamente a un 'fin'.
+                    boolean haciaCierre = salidasNodo.isEmpty() || salidasNodo.stream()
+                            .anyMatch(tr -> nodoRepository.findById(tr.getNodoDestinoId())
+                                    .map(nd -> "fin".equals(nd.getTipo()))
+                                    .orElse(false));
+                    nodoActual.put("salidasPosibles", haciaCierre
+                            ? List.of("aprobar", "rechazar", "observar")
+                            : List.of("completar", "observar"));
                 }
                 if (nodo.getDepartamentoId() != null) {
                     departamentoRepository.findById(nodo.getDepartamentoId())
@@ -190,14 +197,6 @@ public class WorkflowController {
                         .filter(dest -> "decision".equals(dest.getTipo()))
                         .ifPresent(decision -> {
                             List<FlujoTransicion> ramas = flujoRepository.findByNodoOrigenId(decision.getId());
-                            // Si alguna rama cierra el trámite (destino 'fin'), NO ofrecemos la
-                            // decisión inline: ese cierre debe pasar por "Aprobar" (decision-final),
-                            // que valida/exige el documento de resolución.
-                            boolean ramaTerminal = ramas.stream().anyMatch(r ->
-                                    nodoRepository.findById(r.getNodoDestinoId())
-                                            .map(nd -> "fin".equals(nd.getTipo()))
-                                            .orElse(false));
-                            if (ramaTerminal) return;
                             Map<String, Object> dec = new HashMap<>();
                             dec.put("nodoId", decision.getId());
                             dec.put("pregunta", decision.getNombre());
