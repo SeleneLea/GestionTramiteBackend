@@ -160,9 +160,12 @@ public class WorkflowController {
                             .anyMatch(tr -> nodoRepository.findById(tr.getNodoDestinoId())
                                     .map(nd -> "fin".equals(nd.getTipo()))
                                     .orElse(false));
+                    // Rechazar y Observar SIEMPRE disponibles (un trámite puede
+                    // rechazarse o devolverse en cualquier punto). Lo que cambia por
+                    // posición es el avance: 'aprobar' (cierre) vs 'completar'.
                     nodoActual.put("salidasPosibles", haciaCierre
                             ? List.of("aprobar", "rechazar", "observar")
-                            : List.of("completar", "observar"));
+                            : List.of("completar", "rechazar", "observar"));
                 }
                 if (nodo.getDepartamentoId() != null) {
                     departamentoRepository.findById(nodo.getDepartamentoId())
