@@ -34,6 +34,11 @@ public class WorkflowEngineService {
     @Autowired private TrazabilidadService trazabilidadService;
     @Autowired private com.example.demo.repositories.UsuarioRepository usuarioRepository;
     @Autowired private MongoTemplate mongoTemplate;
+    @Autowired private RepositorioDocumentalService repositorioDocumentalService;
+    @Autowired private RequisitoDocumentoService requisitoDocumentoService;
+
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(WorkflowEngineService.class);
 
     // ─────────────────────────────────────────────────────────────────────
     // INICIAR TRÁMITE
@@ -103,6 +108,19 @@ public class WorkflowEngineService {
         tramite.setExpedienteId(expediente.getId());
         tramite.setEstadoActual(EstadoTramite.EN_CURSO.getValor());
         tramite = tramiteRepository.save(tramite);
+
+        // CU-32 — repositorio documental 1:1 al trámite, creado de forma
+        // idempotente al iniciarlo. Si falla (S3 deshabilitado, error de infra),
+        // NO se aborta el inicio del trámite: queda enlazable luego.
+        try {
+            RepositorioDocumental repo =
+                    repositorioDocumentalService.crearAlIniciarTramite(tramite.getId(), tramite.getPoliticaId());
+            tramite.setRepositorioId(repo.getId());
+            // El repositorioId se persiste en el save final del método (más abajo).
+        } catch (Exception ex) {
+            log.warn("[CU-32] No se pudo crear el repositorio para el trámite {}: {}",
+                    tramite.getId(), ex.getMessage());
+        }
 
         // 6. Avanzar desde INICIO al primer nodo (el motor toma control)
         tramite = avanzarDesde(tramite, nodoInicio, null, todosLosNodos);
@@ -316,11 +334,25 @@ public class WorkflowEngineService {
             case "fork" -> {
                 // Activar TODAS las ramas en paralelo
                 List<String> nodosParalelos = new ArrayList<>();
+                boolean algunaRamaEsperaDocs = false;
                 for (FlujoTransicion t : transiciones) {
                     NodoDiagrama rama = encontrarNodoPorId(t.getNodoDestinoId(), todosLosNodos);
+                    boolean faltanDocsRama = requisitoDocumentoService
+                            .faltanObligatoriosCliente(tramite.getId(), rama.getActividadId());
+                    String estadoRama = faltanDocsRama
+                            ? EstadoSeccion.PENDIENTE_DOCUMENTOS.getValor()
+                            : EstadoSeccion.PENDIENTE_RECEPCION.getValor();
                     desbloquearSeccion(tramite.getExpedienteId(), rama.getId(),
-                            elegirFuncionarioDelDepto(rama.getDepartamentoId()));
+                            elegirFuncionarioDelDepto(rama.getDepartamentoId()), estadoRama);
+                    if (faltanDocsRama) algunaRamaEsperaDocs = true;
                     nodosParalelos.add(rama.getId());
+                }
+                if (algunaRamaEsperaDocs) {
+                    notificacionService.crearNotificacion(
+                            tramite.getClienteId(), tramite.getId(), "documentos_pendientes",
+                            "Faltan documentos para continuar",
+                            "Tu tramite " + tramite.getCodigo() + " necesita que subas documentos para continuar.",
+                            "web");
                 }
                 tramite.setNodosParalellosActivos(nodosParalelos);
                 tramite.setNodoActualId(null);   // sin nodo único — hay varios
@@ -344,35 +376,55 @@ public class WorkflowEngineService {
                 // Resolver el funcionario del departamento destino (auto-derivación)
                 String nuevoFuncionarioId = elegirFuncionarioDelDepto(nodo.getDepartamentoId());
 
-                // Desbloquear la sección de este nodo y asignarle el funcionario
-                desbloquearSeccion(tramite.getExpedienteId(), nodo.getId(), nuevoFuncionarioId);
+                // COMPUERTA DE DOCUMENTOS: si faltan documentos OBLIGATORIOS del CLIENTE
+                // en esta actividad, el sistema retiene el paso en PENDIENTE_DOCUMENTOS
+                // (no llega aún a la bandeja del funcionario). Solo aplica a actividades
+                // con requisitos explícitos; legacy no se enforce.
+                boolean faltanDocs = requisitoDocumentoService
+                        .faltanObligatoriosCliente(tramite.getId(), nodo.getActividadId());
+                String estadoDestino = faltanDocs
+                        ? EstadoSeccion.PENDIENTE_DOCUMENTOS.getValor()
+                        : EstadoSeccion.PENDIENTE_RECEPCION.getValor();
+
+                desbloquearSeccion(tramite.getExpedienteId(), nodo.getId(), nuevoFuncionarioId, estadoDestino);
                 tramite.setNodoActualId(nodo.getId());
                 tramite.setNodosParalellosActivos(new ArrayList<>());
                 tramite.setEstadoActual(EstadoTramite.EN_CURSO.getValor());
-
                 tramite.setFuncionarioActualId(nuevoFuncionarioId);
 
-                if (nuevoFuncionarioId != null) {
-                    // CU-11: aviso al funcionario receptor de la nueva etapa.
+                if (faltanDocs) {
+                    // Lógica del SISTEMA: el funcionario NO recibe aún; se avisa al CLIENTE
+                    // para que complete los documentos faltantes (luego se reanuda solo).
                     notificacionService.crearNotificacion(
-                            nuevoFuncionarioId,
+                            tramite.getClienteId(),
                             tramite.getId(),
-                            "asignacion",
-                            "Tramite asignado a tu bandeja",
-                            "El tramite " + tramite.getCodigo() + " avanzo a la etapa: " + nodo.getNombre(),
+                            "documentos_pendientes",
+                            "Faltan documentos para continuar",
+                            "Tu tramite " + tramite.getCodigo() + " necesita que subas documentos en: " + nodo.getNombre(),
+                            "web"
+                    );
+                } else {
+                    if (nuevoFuncionarioId != null) {
+                        // CU-11: aviso al funcionario receptor de la nueva etapa.
+                        notificacionService.crearNotificacion(
+                                nuevoFuncionarioId,
+                                tramite.getId(),
+                                "asignacion",
+                                "Tramite asignado a tu bandeja",
+                                "El tramite " + tramite.getCodigo() + " avanzo a la etapa: " + nodo.getNombre(),
+                                "web"
+                        );
+                    }
+                    // CU-28: aviso al cliente de avance de etapa.
+                    notificacionService.crearNotificacion(
+                            tramite.getClienteId(),
+                            tramite.getId(),
+                            "cambio_estado",
+                            "Tu tramite avanzo de etapa",
+                            "Tu tramite " + tramite.getCodigo() + " esta ahora en: " + nodo.getNombre(),
                             "web"
                     );
                 }
-
-                // CU-28: aviso al cliente de avance de etapa.
-                notificacionService.crearNotificacion(
-                        tramite.getClienteId(),
-                        tramite.getId(),
-                        "cambio_estado",
-                        "Tu tramite avanzo de etapa",
-                        "Tu tramite " + tramite.getCodigo() + " esta ahora en: " + nodo.getNombre(),
-                        "web"
-                );
                 yield tramite;
             }
             // Nodos de control: el motor los atraviesa automáticamente sin parar
@@ -388,7 +440,8 @@ public class WorkflowEngineService {
     // HELPERS
     // ─────────────────────────────────────────────────────────────────────
 
-    private void desbloquearSeccion(String expedienteId, String nodoId, String funcionarioId) {
+    private void desbloquearSeccion(String expedienteId, String nodoId, String funcionarioId,
+                                    String estadoDestino) {
         seccionRepository.findByExpedienteIdOrderByOrdenSeccionAsc(expedienteId)
                 .stream()
                 .filter(s -> {
@@ -403,9 +456,9 @@ public class WorkflowEngineService {
                 })
                 .findFirst()
                 .ifPresent(s -> {
-                    // Llega a la bandeja del responsable: queda Pendiente de recepción
-                    // hasta que lo acepte (aceptarTramite -> En ejecución).
-                    s.setEstado(EstadoSeccion.PENDIENTE_RECEPCION.getValor());
+                    // Estado destino: PENDIENTE_RECEPCION (llega a la bandeja del funcionario)
+                    // o PENDIENTE_DOCUMENTOS (la compuerta retiene hasta que el cliente suba).
+                    s.setEstado(estadoDestino);
                     s.setFechaAsignacion(LocalDateTime.now());
                     // Re-trabajo: limpiar la fecha de cierre previa para no arrastrar
                     // la finalización anterior de la sección reactivada.
@@ -416,6 +469,67 @@ public class WorkflowEngineService {
                         s.setFuncionarioId(funcionarioId);
                     }
                     seccionRepository.save(s);
+                });
+    }
+
+    /**
+     * AUTO-REANUDACIÓN por documentos (la llama {@code DocumentoArchivoService.subir} tras subir).
+     * Si la sección de (tramite, actividad) está en PENDIENTE_DOCUMENTOS y YA no faltan
+     * obligatorios del cliente, la pasa a PENDIENTE_RECEPCION (le llega al funcionario) y avisa.
+     * Es lógica del SISTEMA: no requiere acción del funcionario.
+     */
+    public void reanudarPorDocumentos(String tramiteId, String actividadId) {
+        if (tramiteId == null || actividadId == null) return;
+        if (requisitoDocumentoService.faltanObligatoriosCliente(tramiteId, actividadId)) return;
+
+        Tramite tramite = tramiteRepository.findById(tramiteId).orElse(null);
+        if (tramite == null || tramite.getExpedienteId() == null) return;
+
+        seccionRepository.findByExpedienteIdOrderByOrdenSeccionAsc(tramite.getExpedienteId()).stream()
+                .filter(s -> EstadoSeccion.from(s.getEstado()) == EstadoSeccion.PENDIENTE_DOCUMENTOS)
+                .filter(s -> {
+                    // Match robusto: por actividad del nodo, o por nodo actual del trámite.
+                    NodoDiagrama nodo = nodoRepository.findById(s.getNodoId()).orElse(null);
+                    return (nodo != null && actividadId.equals(nodo.getActividadId()))
+                            || s.getNodoId().equals(tramite.getNodoActualId());
+                })
+                .findFirst()
+                .ifPresent(s -> {
+                    s.setEstado(EstadoSeccion.PENDIENTE_RECEPCION.getValor());
+                    s.setFechaAsignacion(LocalDateTime.now());
+                    seccionRepository.save(s);
+                    log.info("[compuerta] documentos completos: tramite {} reanudado a PENDIENTE_RECEPCION",
+                            tramite.getCodigo());
+                    String funcId = s.getFuncionarioId() != null
+                            ? s.getFuncionarioId() : tramite.getFuncionarioActualId();
+                    if (funcId != null) {
+                        notificacionService.crearNotificacion(
+                                funcId, tramiteId, "asignacion",
+                                "Tramite listo para recibir",
+                                "El cliente completo los documentos del tramite " + tramite.getCodigo() + ".",
+                                "web");
+                    }
+                });
+    }
+
+    /**
+     * Caso OBSERVADO: la llama {@code DocumentoArchivoService.subir} cuando el cliente
+     * re-sube un documento corrigiendo uno que el funcionario marcó como "mal"
+     * ({@code corrigeDocumentoId} = id del documento observado). Lo quita de
+     * {@code seccion.documentosObservados} para que desaparezca de la lista a corregir.
+     */
+    public void limpiarDocumentoObservado(String tramiteId, String corrigeDocumentoId) {
+        if (tramiteId == null || corrigeDocumentoId == null || corrigeDocumentoId.isBlank()) return;
+        Tramite tramite = tramiteRepository.findById(tramiteId).orElse(null);
+        if (tramite == null || tramite.getExpedienteId() == null) return;
+        String id = corrigeDocumentoId.trim();
+        seccionRepository.findByExpedienteIdOrderByOrdenSeccionAsc(tramite.getExpedienteId()).stream()
+                .filter(s -> s.getDocumentosObservados() != null && s.getDocumentosObservados().contains(id))
+                .findFirst()
+                .ifPresent(s -> {
+                    s.getDocumentosObservados().remove(id);
+                    seccionRepository.save(s);
+                    log.info("[observado] documento {} corregido en tramite {}", id, tramite.getCodigo());
                 });
     }
 

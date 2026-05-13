@@ -49,6 +49,9 @@ public class TramiteDecisionService {
     private DocumentoArchivoService documentoArchivoService;
 
     @Autowired
+    private RepositorioDocumentalService repositorioDocumentalService;
+
+    @Autowired
     private NotificacionService notificacionService;
 
     /**
@@ -130,6 +133,12 @@ public class TramiteDecisionService {
             throw new IllegalArgumentException("El tramite ya esta cerrado");
         }
 
+        // Regla: para observar hay que marcar al menos un documento a corregir.
+        if (request.getDocumentosObservados() == null || request.getDocumentosObservados().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Debe seleccionar al menos un documento a corregir para observar el tramite");
+        }
+
         String estadoAnterior = tramite.getEstadoActual();
         String nodoAnteriorId = tramite.getNodoActualId();
 
@@ -154,6 +163,11 @@ public class TramiteDecisionService {
                     .ifPresent(s -> {
                         s.setEstado(EstadoSeccion.OBSERVADO.getValor());
                         s.setFechaAsignacion(LocalDateTime.now());
+                        // Documentos que el funcionario marcó como "mal" (los que el
+                        // cliente debe corregir). Vacío si no se especifican.
+                        s.setDocumentosObservados(request.getDocumentosObservados() != null
+                                ? new ArrayList<>(request.getDocumentosObservados())
+                                : new ArrayList<>());
                         seccionRepository.save(s);
                     });
 
@@ -297,17 +311,18 @@ public class TramiteDecisionService {
                     "RESOLUCION_REQUERIDA: esta política exige adjuntar el documento de resolución al aprobar");
         }
 
-        if (hayArchivo && (politica == null || politica.getRepositorioId() == null)) {
-            throw new IllegalStateException(
-                    "La política no tiene repositorio documental para almacenar la resolución");
-        }
-
         // BK4-01: subir la resolución ANTES de registrar la traza "aprobar". Si
         // S3 falla, la excepción aborta aquí y no deja una traza fantasma de
         // aprobación sobre un trámite cuya resolución nunca llegó a almacenarse.
         if (hayArchivo) {
+            // El repositorio es 1:1 al trámite (idempotente y resistente a carrera):
+            // se asegura/crea aquí para almacenar la resolución, sin depender de un
+            // repositorioId precalculado en la política.
+            String repositorioId = repositorioDocumentalService
+                    .crearAlIniciarTramite(tramite.getId(), tramite.getPoliticaId())
+                    .getId();
             DocumentoArchivo resolucion = documentoArchivoService.subirResolucion(
-                    politica.getRepositorioId(),
+                    repositorioId,
                     tramite.getId(),
                     tramite.getNodoActualId(),
                     inferirTipoDocumento(archivoResolucion),

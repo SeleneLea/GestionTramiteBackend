@@ -23,6 +23,7 @@ import com.example.demo.repositories.SeccionExpedienteRepository;
 import com.example.demo.repositories.TramiteRepository;
 import com.example.demo.repositories.UsuarioRepository;
 import com.example.demo.services.DocumentoArchivoService;
+import com.example.demo.services.RequisitoDocumentoService;
 import com.example.demo.services.IaProxyService;
 import com.example.demo.services.WorkflowEngineService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -58,6 +59,7 @@ public class WorkflowController {
     @Autowired private ActividadRepository actividadRepository;
     @Autowired private DocumentoRepository documentoRepository;
     @Autowired private DocumentoArchivoService documentoArchivoService;
+    @Autowired private RequisitoDocumentoService requisitoDocumentoService;
     /** CU-44 — proxy al microservicio para ordenar la bandeja por IA. Opcional. */
     @Autowired(required = false) private IaProxyService iaProxy;
 
@@ -221,7 +223,9 @@ public class WorkflowController {
             }
         }
 
-        // Progreso = secciones completadas / total
+        // Progreso = secciones completadas / total. De paso, exponemos el
+        // expediente con sus secciones (una por paso/nodo) para la pestaña
+        // "Secciones" del cliente (web y móvil leen expediente.secciones).
         int progreso = 0;
         if (t.getExpedienteId() != null) {
             List<SeccionExpediente> secciones = seccionRepository
@@ -232,6 +236,34 @@ public class WorkflowController {
                         .count();
                 progreso = (int) Math.round(100.0 * completadas / secciones.size());
             }
+
+            List<Map<String, Object>> seccionesDto = secciones.stream().map(s -> {
+                Map<String, Object> sm = new HashMap<>();
+                sm.put("id", s.getId());
+                sm.put("estado", s.getEstado());
+                sm.put("fechaInicio", s.getFechaAsignacion());
+                sm.put("fechaCompletacion", s.getFechaCompletado());
+                // El "nombre" del paso es el nombre del nodo; resolvemos también
+                // la actividad y el departamento para mostrarlos en la sección.
+                nodoRepository.findById(s.getNodoId()).ifPresent(n -> {
+                    sm.put("nombre", n.getNombre());
+                    if (n.getActividadId() != null) {
+                        actividadRepository.findById(n.getActividadId())
+                                .ifPresent(a -> sm.put("actividad", a.getNombre()));
+                    }
+                });
+                sm.putIfAbsent("nombre", "Paso");
+                if (s.getDepartamentoId() != null) {
+                    departamentoRepository.findById(s.getDepartamentoId())
+                            .ifPresent(d -> sm.put("departamento", d.getNombre()));
+                }
+                return sm;
+            }).toList();
+
+            Map<String, Object> expedienteDto = new HashMap<>();
+            expedienteDto.put("id", t.getExpedienteId());
+            expedienteDto.put("secciones", seccionesDto);
+            resp.put("expediente", expedienteDto);
         }
         resp.put("progreso", progreso);
 
@@ -314,8 +346,23 @@ public class WorkflowController {
                     });
         }
 
+        // Última observación/motivo por nodo (del historial), para mostrarla en
+        // el paso correspondiente del flujo (vista unificada).
+        Map<String, String> obsPorNodo = new HashMap<>();
+        historicoRepository.findByTramiteIdOrderByFechaCambioAsc(t.getId()).forEach(h -> {
+            if (h.getMotivo() != null && !h.getMotivo().isBlank()) {
+                String nid = h.getNodoNuevoId() != null ? h.getNodoNuevoId() : h.getNodoAnteriorId();
+                if (nid != null) obsPorNodo.put(nid, h.getMotivo()); // orden asc → gana el último
+            }
+        });
+
         List<FlujoCompletoResponse.NodoFlujoDTO> nodosDto = nodos.stream()
-                .map(n -> construirNodoFlujoDto(n, t, seccionesPorNodo.get(n.getId())))
+                .map(n -> {
+                    FlujoCompletoResponse.NodoFlujoDTO dto =
+                            construirNodoFlujoDto(n, t, seccionesPorNodo.get(n.getId()));
+                    dto.setObservacion(obsPorNodo.get(n.getId()));
+                    return dto;
+                })
                 .toList();
 
         resp.setNodos(nodosDto);
@@ -340,6 +387,23 @@ public class WorkflowController {
             });
         }
 
+        // Nodo de decisión (if): exponemos la pregunta y a dónde lleva cada rama,
+        // para que en la vista del flujo se muestre la pregunta (no "decisión") y
+        // el usuario entienda por qué camino sigue el trámite según la respuesta.
+        if ("decision".equals(nodo.getTipo())) {
+            dto.setPregunta(nodo.getNombre());
+            List<FlujoTransicion> ramas = flujoRepository.findByNodoOrigenId(nodo.getId());
+            List<Map<String, Object>> opciones = ramas.stream().map(rama -> {
+                Map<String, Object> op = new HashMap<>();
+                op.put("valor", rama.getEtiqueta());
+                op.put("etiqueta", capitalizarRama(rama.getEtiqueta()));
+                nodoRepository.findById(rama.getNodoDestinoId())
+                        .ifPresent(nd -> op.put("destinoNombre", nd.getNombre()));
+                return op;
+            }).toList();
+            dto.setOpciones(opciones);
+        }
+
         if (nodo.getActividadId() != null) {
             Actividad act = actividadRepository.findById(nodo.getActividadId()).orElse(null);
             if (act != null) {
@@ -349,12 +413,20 @@ public class WorkflowController {
                 dto.setSlaHoras(act.getSlaHoras());
                 dto.setSalidasPosibles(act.getSalidasPosibles());
 
-                List<FlujoCompletoResponse.DocumentoRequeridoDTO> docs = (act.getDocumentoIds() == null)
-                        ? java.util.Collections.emptyList()
-                        : act.getDocumentoIds().stream()
-                                .map(docId -> documentoRepository.findById(docId).orElse(null))
+                List<FlujoCompletoResponse.DocumentoRequeridoDTO> docs =
+                        requisitoDocumentoService.requisitosDe(act).stream()
+                                .map(req -> {
+                                    Documento d = documentoRepository.findById(req.getDocumentoId()).orElse(null);
+                                    if (d == null) return null;
+                                    var rd = new FlujoCompletoResponse.DocumentoRequeridoDTO();
+                                    rd.setId(d.getId());
+                                    rd.setNombre(d.getNombre());
+                                    rd.setDescripcion(d.getDescripcion());
+                                    rd.setProveedor(req.getProveedor());
+                                    rd.setObligatorio(req.isObligatorio());
+                                    return rd;
+                                })
                                 .filter(java.util.Objects::nonNull)
-                                .map(this::toDocumentoRequeridoDto)
                                 .toList();
                 dto.setDocumentosRequeridos(docs);
             }
@@ -362,6 +434,7 @@ public class WorkflowController {
 
         if (seccion != null) {
             dto.setEstadoSeccion(seccion.getEstado());
+            dto.setDocumentosObservados(seccion.getDocumentosObservados());
             dto.setFechaAsignacion(seccion.getFechaAsignacion());
             dto.setFechaCompletado(seccion.getFechaCompletado());
             if (seccion.getFuncionarioId() != null) {
@@ -444,6 +517,9 @@ public class WorkflowController {
         List<Tramite> pendientes = activos.stream()
                 .filter(t -> t.getNodoActualId() != null || t.estaEnParalelo())
                 .filter(t -> esAdmin || userId.equals(t.getFuncionarioActualId()))
+                // No mostrar en la bandeja los que están en COMPUERTA (esperando
+                // documentos del cliente): aún no le toca al funcionario.
+                .filter(t -> !esperandoDocumentosCliente(t))
                 .toList();
 
         // CU-44 — reordenar con IA si se solicita y el proxy está disponible.
@@ -461,6 +537,14 @@ public class WorkflowController {
                 .map(this::resumenTramite)
                 .toList();
         return ResponseEntity.ok(respuesta);
+    }
+
+    /** ¿El paso ACTUAL del trámite está en COMPUERTA (esperando documentos del cliente)? */
+    private boolean esperandoDocumentosCliente(Tramite t) {
+        if (t.getExpedienteId() == null || t.getNodoActualId() == null) return false;
+        return seccionRepository.findByExpedienteIdOrderByOrdenSeccionAsc(t.getExpedienteId()).stream()
+                .anyMatch(s -> t.getNodoActualId().equals(s.getNodoId())
+                        && EstadoSeccion.from(s.getEstado()) == EstadoSeccion.PENDIENTE_DOCUMENTOS);
     }
 
     private List<Tramite> reordenarPorIa(List<Tramite> tramites, String funcionarioId) {
@@ -537,6 +621,15 @@ public class WorkflowController {
                 progreso = (int) Math.round(100.0 * completadas / secciones.size());
             }
             m.put("progreso", progreso);
+            // Estado de la sección del nodo actual: permite a la app distinguir en la
+            // lista la COMPUERTA ('Pendiente de documentos', el trámite avanzó) del
+            // estado normal, sin abrir cada trámite.
+            if (t.getNodoActualId() != null) {
+                secciones.stream()
+                        .filter(s -> t.getNodoActualId().equals(s.getNodoId()))
+                        .findFirst()
+                        .ifPresent(s -> m.put("estadoSeccion", s.getEstado()));
+            }
         } else {
             m.put("progreso", 0);
         }

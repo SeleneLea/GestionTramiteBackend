@@ -55,7 +55,7 @@ def _subir(ctx: Ctx, label: str, bytes_extra: bytes) -> tuple[bool, str]:
         "nombreLogico": f"_E2E_{label}_{int(time.time()*1000)}",
         "obligatorio": "false",
     }
-    r = post(f"/repositorios/{ctx.repositorio_id}/documentos",
+    r = post(f"/tramites/{ctx.tramite_id}/documentos",
              token=ctx.token_admin, files=files, data=data)
     if r.status_code in (200, 201):
         return True, r.json().get("documentoArchivoId", "")
@@ -64,7 +64,7 @@ def _subir(ctx: Ctx, label: str, bytes_extra: bytes) -> tuple[bool, str]:
 
 def _s3_disponible(ctx: Ctx) -> bool:
     """Probe rápido: intenta subir un PDF de 1 byte. True si S3 funciona."""
-    if SKIP_S3 or not ctx.repositorio_id or not ctx.tramite_id or not ctx.actividad_id:
+    if SKIP_S3 or not ctx.tramite_id or not ctx.actividad_id:
         return False
     ok, _ = _subir(ctx, "probe", b"probe\n")
     return ok
@@ -387,8 +387,8 @@ def test_permiso_solo_lectura(ctx: Ctx) -> None:
 
     # 2. Intentar subir como funcionario — la validación ocurre ANTES de tocar S3,
     #    así que funciona aunque S3 esté deshabilitado.
-    if not ctx.repositorio_id or not ctx.tramite_id:
-        skip("N3.7 verificar bloqueo", "sin repositorio_id/tramite_id", res)
+    if not ctx.tramite_id or not ctx.actividad_id:
+        skip("N3.7 verificar bloqueo", "sin tramite_id/actividad_id", res)
         return
 
     pdf = b"%PDF-1.4\n_E2E_lectura\n"
@@ -400,7 +400,7 @@ def test_permiso_solo_lectura(ctx: Ctx) -> None:
         "nombreLogico": "_E2E_intento_lectura",
         "obligatorio": "false",
     }
-    r2 = post(f"/repositorios/{ctx.repositorio_id}/documentos",
+    r2 = post(f"/tramites/{ctx.tramite_id}/documentos",
               token=ctx.token_func, files=files, data=data)
 
     if r2.status_code == 403:
@@ -516,8 +516,8 @@ def run(ctx: Ctx | None = None) -> Ctx:
         r = get("/tramites/mis-pendientes", token=ctx.token_func)
         if r.status_code == 200 and r.json():
             ctx.tramite_id = r.json()[0].get("id", "")
-    if not ctx.repositorio_id and ctx.politica_id_activa:
-        r = get(f"/politicas/{ctx.politica_id_activa}/repositorio",
+    if not ctx.repositorio_id and ctx.tramite_id:
+        r = get(f"/tramites/{ctx.tramite_id}/repositorio",
                 token=ctx.token_admin)
         if r.status_code == 200:
             ctx.repositorio_id = r.json().get("id", "")

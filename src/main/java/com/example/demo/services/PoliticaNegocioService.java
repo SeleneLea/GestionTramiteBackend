@@ -3,11 +3,15 @@ package com.example.demo.services;
 import com.example.demo.dto.ActividadDocumentosDTO;
 import com.example.demo.dto.DocumentoInfoDTO;
 import com.example.demo.dto.PoliticaNegocioRequest;
+import com.example.demo.models.Actividad;
 import com.example.demo.models.Documento;
+import com.example.demo.models.FlujoTransicion;
+import com.example.demo.models.NodoDiagrama;
 import com.example.demo.models.PoliticaNegocio;
 import com.example.demo.repositories.ActividadRepository;
 import com.example.demo.repositories.DiagramaWorkflowRepository;
 import com.example.demo.repositories.DocumentoRepository;
+import com.example.demo.repositories.FlujoTransicionRepository;
 import com.example.demo.repositories.NodoDiagramaRepository;
 import com.example.demo.repositories.PoliticaNegocioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,8 +31,8 @@ public class PoliticaNegocioService {
     @Autowired private NodoDiagramaRepository nodoRepository;
     @Autowired private ActividadRepository actividadRepository;
     @Autowired private DocumentoRepository documentoRepository;
-    /** CU-32 — auto-creación del repositorio documental al guardar la política. */
-    @Autowired private RepositorioDocumentalService repositorioDocumentalService;
+    @Autowired private FlujoTransicionRepository flujoRepository;
+    @Autowired private RequisitoDocumentoService requisitoDocumentoService;
 
     public PoliticaNegocio crear(PoliticaNegocioRequest req, String creadorId) {
         if (politicaRepository.findByNombre(req.getNombre()).isPresent()) {
@@ -53,19 +57,8 @@ public class PoliticaNegocioService {
             guardada = politicaRepository.save(guardada);
         }
 
-        // CU-32 — repositorio asociado 1:1. Si S3 está deshabilitado o falla,
-        // no rompemos la creación de la política; queda para reintento manual
-        // vía POST /api/politicas/{id}/repositorio.
-        try {
-            repositorioDocumentalService.crearAlGuardarPolitica(guardada.getId());
-            // Re-leer la política porque crearAlGuardarPolitica actualizó repositorioId
-            guardada = politicaRepository.findById(guardada.getId()).orElse(guardada);
-        } catch (Exception ex) {
-            // Log silencioso; el endpoint manual permite recuperar
-            org.slf4j.LoggerFactory.getLogger(PoliticaNegocioService.class)
-                    .warn("[CU-32] No se pudo crear repositorio para política {}: {}",
-                            guardada.getId(), ex.getMessage());
-        }
+        // CU-32 — el repositorio documental ya NO se crea aquí: ahora es 1:1 al
+        // trámite y se crea de forma idempotente al iniciarlo (WorkflowEngineService).
 
         return guardada;
     }
@@ -151,10 +144,31 @@ public class PoliticaNegocioService {
                     .orElseThrow(() -> new IllegalArgumentException(
                             "El diagrama asignado no existe. Crea o vincula uno antes de activar"));
 
-            long nodos = nodoRepository.findByDiagramaId(diagrama.getId()).size();
-            if (nodos == 0) {
+            List<NodoDiagrama> nodos = nodoRepository.findByDiagramaId(diagrama.getId());
+            if (nodos.isEmpty()) {
                 throw new IllegalArgumentException(
                         "El diagrama no tiene nodos. Agrega al menos Inicio, una actividad y Fin antes de activar");
+            }
+
+            // Cada nodo de decisión (if) DEBE tener su pregunta escrita (no el
+            // placeholder "¿Decisión?") y sus DOS ramas conectadas y etiquetadas
+            // (Sí / No); de lo contrario el funcionario vería una decisión sin
+            // pregunta y con botones en blanco, sin saber por qué camino seguir.
+            for (NodoDiagrama nodo : nodos) {
+                if (!"decision".equals(nodo.getTipo())) continue;
+                if (preguntaVacia(nodo.getNombre())) {
+                    throw new IllegalArgumentException(
+                            "Hay una decisión sin pregunta. Escribe la pregunta (Sí/No) en cada nodo "
+                                    + "de decisión antes de activar la política.");
+                }
+                List<FlujoTransicion> ramas = flujoRepository.findByNodoOrigenId(nodo.getId());
+                boolean tieneSi = ramas.stream().anyMatch(tr -> "si".equalsIgnoreCase(trim(tr.getEtiqueta())));
+                boolean tieneNo = ramas.stream().anyMatch(tr -> "no".equalsIgnoreCase(trim(tr.getEtiqueta())));
+                if (!tieneSi || !tieneNo) {
+                    throw new IllegalArgumentException(
+                            "La decisión \"" + nodo.getNombre() + "\" debe tener sus dos ramas conectadas "
+                                    + "y etiquetadas (Sí y No) antes de activar la política.");
+                }
             }
 
             politicaRepository.findByEstado("activa").stream()
@@ -169,6 +183,25 @@ public class PoliticaNegocioService {
 
         p.setEstado(nuevoEstado);
         return politicaRepository.save(p);
+    }
+
+    /**
+     * Una pregunta de decisión está "vacía" si no se escribió o quedó el
+     * placeholder por defecto ("¿Decisión?" / "decisión"). Normaliza acentos y
+     * signos de interrogación para no depender de tildes/encoding.
+     */
+    private boolean preguntaVacia(String nombre) {
+        String norm = java.text.Normalizer
+                .normalize(nombre == null ? "" : nombre.trim(), java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")   // quitar acentos
+                .replaceAll("[¿?]", "")     // quitar signos de interrogación
+                .trim()
+                .toLowerCase();
+        return norm.isEmpty() || norm.equals("decision");
+    }
+
+    private String trim(String s) {
+        return s == null ? "" : s.trim();
     }
 
     private void validarTransicionEstado(String actual, String nuevo) {
@@ -189,15 +222,65 @@ public class PoliticaNegocioService {
         return nodoRepository.findByDiagramaId(p.getDiagramaId()).stream()
                 .filter(nodo -> nodo.getActividadId() != null && !nodo.getActividadId().isBlank())
                 .flatMap(nodo -> actividadRepository.findById(nodo.getActividadId()).stream())
-                .filter(act -> act.getDocumentoIds() != null && !act.getDocumentoIds().isEmpty())
+                .filter(act -> !requisitoDocumentoService.requisitosDe(act).isEmpty())
                 .map(act -> {
-                    List<DocumentoInfoDTO> docs = act.getDocumentoIds().stream()
-                            .flatMap(docId -> documentoRepository.findById(docId).stream())
-                            .map(doc -> new DocumentoInfoDTO(doc.getId(), doc.getNombre(), doc.getDescripcion()))
+                    List<DocumentoInfoDTO> docs = requisitoDocumentoService.requisitosDe(act).stream()
+                            .flatMap(req -> documentoRepository.findById(req.getDocumentoId()).stream()
+                                    .map(doc -> new DocumentoInfoDTO(doc.getId(), doc.getNombre(),
+                                            doc.getDescripcion(), req.getProveedor(), req.isObligatorio())))
                             .collect(Collectors.toList());
                     return new ActividadDocumentosDTO(act.getId(), act.getNombre(), docs);
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Requisitos documentales de la PRIMERA actividad (nodo de entrada) de la política.
+     * Sigue el diagrama desde el nodo "inicio" hasta el primer nodo de tipo actividad,
+     * para que el cliente los suba al iniciar el trámite (y no quede en compuerta).
+     */
+    public ActividadDocumentosDTO documentosIniciales(String politicaId) {
+        PoliticaNegocio p = politicaRepository.findById(politicaId)
+                .orElseThrow(() -> new IllegalArgumentException("Política no encontrada"));
+        if (p.getDiagramaId() == null) return null;
+
+        List<NodoDiagrama> nodos = nodoRepository.findByDiagramaId(p.getDiagramaId());
+        NodoDiagrama inicio = nodos.stream()
+                .filter(n -> n.getTipo() != null && n.getTipo().equalsIgnoreCase("inicio"))
+                .findFirst().orElse(null);
+        if (inicio == null) return null;
+
+        NodoDiagrama actNode = primeraActividadDesde(inicio, nodos);
+        if (actNode == null || actNode.getActividadId() == null) return null;
+        Actividad act = actividadRepository.findById(actNode.getActividadId()).orElse(null);
+        if (act == null) return null;
+
+        List<DocumentoInfoDTO> docs = requisitoDocumentoService.requisitosDe(act).stream()
+                .flatMap(req -> documentoRepository.findById(req.getDocumentoId()).stream()
+                        .map(d -> new DocumentoInfoDTO(d.getId(), d.getNombre(), d.getDescripcion(),
+                                req.getProveedor(), req.isObligatorio())))
+                .collect(Collectors.toList());
+        return new ActividadDocumentosDTO(act.getId(), act.getNombre(), docs);
+    }
+
+    /** BFS desde {@code desde} siguiendo transiciones hasta el primer nodo de tipo actividad. */
+    private NodoDiagrama primeraActividadDesde(NodoDiagrama desde, List<NodoDiagrama> nodos) {
+        java.util.Set<String> visto = new java.util.HashSet<>();
+        java.util.Deque<NodoDiagrama> cola = new java.util.ArrayDeque<>();
+        cola.add(desde);
+        while (!cola.isEmpty()) {
+            NodoDiagrama n = cola.poll();
+            if (n == null || !visto.add(n.getId())) continue;
+            if (n.getTipo() != null && n.getTipo().equalsIgnoreCase("actividad")
+                    && n.getActividadId() != null) {
+                return n;
+            }
+            for (FlujoTransicion t : flujoRepository.findByNodoOrigenId(n.getId())) {
+                nodos.stream().filter(x -> x.getId().equals(t.getNodoDestinoId()))
+                        .findFirst().ifPresent(cola::add);
+            }
+        }
+        return null;
     }
 
     public void eliminar(String id) {

@@ -68,19 +68,10 @@ def flujo_a_politica_lifecycle(ctx: Ctx) -> None:
         if not body:
             return
         politica_id = body.get("id", "")
-        # A.1b · El hook CU-32 debe haber creado el repositorio
-        repo_id = body.get("repositorioId")
-        if repo_id:
-            ok("A.1b CU-32 hook auto-creó repositorio", 200, f"repositorioId={repo_id}", res)
-        else:
-            # Si S3 estaba caído al crear, el hook hace log silencioso. Verifico endpoint.
-            r2 = get(f"/politicas/{politica_id}/repositorio", token=ctx.token_admin)
-            if r2.status_code == 200:
-                ok("A.1b CU-32 hook auto-creó repositorio", 200,
-                   f"repositorioId={r2.json().get('id','?')}", res)
-            else:
-                warn("A.1b CU-32 hook auto-creó repositorio", r2.status_code,
-                     "no se creó — probablemente S3 deshabilitado", res)
+        # A.1b · El repositorio documental ahora es 1:1 por TRÁMITE (se crea al
+        # iniciar el trámite), no por política. Se valida en el flujo C / CU-32.
+        skip("A.1b CU-32 repositorio (ahora por trámite, no por política)",
+             "se verifica al iniciar el trámite", res)
 
         # A.2 · Intentar activar sin diagrama → debe fallar 400
         r = patch(f"/politicas/{politica_id}/estado", token=ctx.token_admin,
@@ -294,16 +285,6 @@ def flujo_c_documental(ctx: Ctx) -> None:
     if SKIP_S3:
         skip("Flujo C", "SKIP_S3=1", res)
         return
-    if not ctx.repositorio_id:
-        # Intentar obtenerlo de la política activa
-        if ctx.politica_id_activa:
-            r = get(f"/politicas/{ctx.politica_id_activa}/repositorio",
-                    token=ctx.token_admin)
-            if r.status_code == 200:
-                ctx.repositorio_id = r.json().get("id", "")
-        if not ctx.repositorio_id:
-            skip("Flujo C", "sin repositorio_id", res)
-            return
     if not ctx.tramite_id or not ctx.actividad_id:
         skip("Flujo C", "sin tramite_id/actividad_id", res)
         return
@@ -318,7 +299,7 @@ def flujo_c_documental(ctx: Ctx) -> None:
         "nombreLogico": f"_E2E_doc_{int(time.time())}",
         "obligatorio": "false",
     }
-    r = post(f"/repositorios/{ctx.repositorio_id}/documentos",
+    r = post(f"/tramites/{ctx.tramite_id}/documentos",
              token=ctx.token_admin, files=files, data=data)
     if r.status_code == 500 and "S3" in (r.text or ""):
         warn("C.1 subir v1", r.status_code, "S3 deshabilitado — saltando flujo C", res)

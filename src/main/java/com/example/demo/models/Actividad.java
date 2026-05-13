@@ -35,7 +35,21 @@ public class Actividad {
     private List<String> salidasPosibles = new ArrayList<>();
 
     private List<String> camposRequeridos;
+
+    /**
+     * Documentos del catálogo requeridos en esta actividad (legacy: lista plana de IDs).
+     * Se conserva por compatibilidad; el detalle por requisito vive en
+     * {@link #documentosRequeridos}. Si {@code documentosRequeridos} está poblado, manda ese.
+     */
     private List<String> documentoIds;
+
+    /**
+     * Requisitos documentales con su proveedor (CLIENTE/FUNCIONARIO) y obligatoriedad.
+     * Reemplaza progresivamente a {@link #documentoIds}. Si está vacío/null, se deriva
+     * de {@code documentoIds} tratando cada doc como CLIENTE + obligatorio (fallback legacy).
+     */
+    private List<RequisitoDocumento> documentosRequeridos;
+
     private boolean reutilizable;
 
     private LocalDateTime fechaCreacion;

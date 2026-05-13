@@ -65,6 +65,7 @@ public class MasterSeeder {
     // ── Parte 2 ──────────────────────────────────────────────────────────
     @Autowired private PermisoPuntoAtencionSeeder permisoPuntoAtencionSeeder;
     @Autowired private RepositorioDocumentalSeeder repositorioDocumentalSeeder;
+    @Autowired private DocumentoArchivoSeeder     documentoArchivoSeeder;
     @Autowired private AlertaAnomaliaSeeder       alertaAnomaliaSeeder;
     @Autowired private TramiteIaPatchSeeder       tramiteIaPatchSeeder;
 
@@ -98,9 +99,13 @@ public class MasterSeeder {
         // ── Parte 2 ──────────────────────────────────────────────────────
         // Requiere políticas + actividades sembradas.
         permisoPuntoAtencionSeeder.seed();
-        // Crea el contenedor de repositorio por política (sin S3, sin docs).
-        // Cierra el 404 en GET /api/politicas/{id}/repositorio.
+        // Crea el contenedor de repositorio 1:1 por trámite (sin S3, sin docs)
+        // y enlaza tramite.repositorioId. Requiere trámites sembrados.
         repositorioDocumentalSeeder.seed();
+        // Documentos de PRUEBA en el repositorio (sube PDFs a S3) para los primeros
+        // trámites, para que "Ver" funcione. Requiere repos + S3. La compuerta se
+        // demuestra iniciando un trámite NUEVO (arranca sin documentos).
+        documentoArchivoSeeder.seed();
         // Patch sobre trámites existentes: rellena riesgoDemora, probSuperarSla
         // y rutaSugerida (CU-42/CU-43) si están vacíos. Requiere trámites +
         // diagramas + nodos sembrados.

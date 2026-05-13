@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import com.example.demo.models.RequisitoDocumento;
 import lombok.Data;
 
 import java.util.List;
@@ -39,5 +40,10 @@ public class ActividadRequest {
 
     private List<String> camposRequeridos;
     private List<String> documentoIds;
+    /**
+     * Requisitos documentales con proveedor (CLIENTE/FUNCIONARIO) + obligatorio.
+     * Reemplaza a {@link #documentoIds}; si viene poblado, manda éste.
+     */
+    private List<RequisitoDocumento> documentosRequeridos;
     private boolean reutilizable;
 }

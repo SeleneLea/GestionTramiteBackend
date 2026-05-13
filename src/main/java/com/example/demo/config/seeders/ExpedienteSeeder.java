@@ -63,7 +63,10 @@ public class ExpedienteSeeder {
                 case "TRM-2024-003", "TRM-2024-009" -> crearExpedienteParcial(tramite,
                         nAtcVer, nTecInsp, nTecPres,
                         atcId, tecId, funcAtcId, funcTecId);
-                case "TRM-2024-004", "TRM-2024-008" -> crearExpedienteInicial(tramite,
+                case "TRM-2024-004" -> crearExpedienteInicial(tramite,
+                        nAtcVer, atcId, funcAtcId);
+                // Demo de COMPUERTA: avanzó a ATC pero faltan documentos del cliente.
+                case "TRM-2024-008" -> crearExpedienteCompuerta(tramite,
                         nAtcVer, atcId, funcAtcId);
                 case "TRM-2024-005", "TRM-2024-011" -> crearExpedienteObservado(tramite,
                         nAtcVer, nTecInsp, nTecPres, nLegContr,
@@ -149,6 +152,27 @@ public class ExpedienteSeeder {
 
         // Recién llegado a la bandeja de ATC: pendiente de que el funcionario lo acepte.
         SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "Pendiente de recepcion",
+                funcAtcId, base, null);
+
+        exp.setSeccionesIds(List.of(sAtc.getId()));
+        exp.setUltimaActualizacion(base);
+        expedienteRepository.save(exp);
+
+        t.setExpedienteId(exp.getId());
+        tramiteRepository.save(t);
+    }
+
+    /**
+     * Demo de COMPUERTA: el trámite avanzó a la actividad de ATC pero faltan documentos
+     * OBLIGATORIOS del CLIENTE. La sección queda en "Pendiente de documentos" (lo pone el
+     * sistema). El cliente debe completarlos. {@code DocumentoArchivoSeeder} NO le siembra
+     * documentos a este trámite, así que sus requisitos quedan pendientes (lista azul no vacía).
+     */
+    private void crearExpedienteCompuerta(Tramite t, String nAtcVer, String atcId, String funcAtcId) {
+        LocalDateTime base = t.getFechaInicio();
+        ExpedienteDigital exp = crearExpediente(t.getId(), base);
+
+        SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "Pendiente de documentos",
                 funcAtcId, base, null);
 
         exp.setSeccionesIds(List.of(sAtc.getId()));

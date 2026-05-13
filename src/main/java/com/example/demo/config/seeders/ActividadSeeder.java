@@ -136,6 +136,12 @@ public class ActividadSeeder {
                 .filter(id -> id != null)
                 .toList();
         a.setDocumentoIds(documentoIds);
+        // Requisitos con proveedor: en el demo, los documentos sembrados los aporta el
+        // CLIENTE y son obligatorios → la compuerta los exige antes de avanzar.
+        a.setDocumentosRequeridos(documentoIds.stream()
+                .map(id -> new com.example.demo.models.RequisitoDocumento(
+                        id, com.example.demo.models.RequisitoDocumento.CLIENTE, true))
+                .toList());
 
         actividadRepository.save(a);
     }

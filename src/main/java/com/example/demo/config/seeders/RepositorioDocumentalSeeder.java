@@ -1,8 +1,8 @@
 package com.example.demo.config.seeders;
 
 import com.example.demo.models.RepositorioDocumental;
-import com.example.demo.repositories.PoliticaNegocioRepository;
 import com.example.demo.repositories.RepositorioDocumentalRepository;
+import com.example.demo.repositories.TramiteRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -10,46 +10,57 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 
 /**
- * Parte 2 — CU-32: contenedor del repositorio documental.
+ * Parte 2 — CU-32: contenedor del repositorio documental, asociado 1:1 a un
+ * Tramite.
  *
- * El hook automático en {@code PoliticaNegocioService.crear()} crea el
- * repositorio al guardar una política nueva, pero las políticas sembradas
- * por {@code PoliticaSeeder} se insertan directo al repo MongoDB — nunca
- * pasan por ese hook. Resultado: {@code GET /api/politicas/{id}/repositorio}
- * devuelve 404 hasta que el admin pulsa el botón "Crear repositorio ahora".
+ * Las políticas sembradas por {@code PoliticaSeeder} se insertan directo al
+ * repo MongoDB, y los trámites sembrados por {@code TramiteSeeder} tampoco
+ * pasan por el hook que crea el repositorio al iniciar un trámite. Resultado:
+ * {@code GET /api/tramites/{id}/repositorio} devolvería 404 hasta que se sube
+ * el primer documento.
  *
  * Este seeder cierra ese gap creando el contenedor (sin documentos, sin
- * archivos físicos en S3 — sólo la entrada en MongoDB) para cada política
- * activa. Idempotente: si el repositorio ya existe, lo deja como está.
+ * archivos físicos en S3 — sólo la entrada en MongoDB) para cada trámite,
+ * y enlaza {@code tramite.repositorioId} al id del repositorio. Idempotente:
+ * si el repositorio ya existe (por tramiteId) lo deja como está, pero igual
+ * asegura el enlace inverso en el trámite.
  */
 @Component
 @Slf4j
 public class RepositorioDocumentalSeeder {
 
     @Autowired private RepositorioDocumentalRepository repoRepo;
-    @Autowired private PoliticaNegocioRepository politicaRepo;
+    @Autowired private TramiteRepository tramiteRepo;
 
     public void seed() {
-        var politicas = politicaRepo.findAll();
-        if (politicas.isEmpty()) {
-            log.info("[Seeder] RepositorioDocumental omitido (sin políticas)");
+        var tramites = tramiteRepo.findAll();
+        if (tramites.isEmpty()) {
+            log.info("[Seeder] RepositorioDocumental omitido (sin trámites)");
             return;
         }
 
         int creados = 0;
-        for (var politica : politicas) {
-            if (repoRepo.findByPoliticaId(politica.getId()).isPresent()) continue;
+        for (var tramite : tramites) {
+            RepositorioDocumental repo = repoRepo.findByTramiteId(tramite.getId()).orElse(null);
 
-            RepositorioDocumental r = new RepositorioDocumental();
-            r.setPoliticaId(politica.getId());
-            r.setNombre("Repositorio - " + politica.getNombre());
-            r.setBucketKey("politicas/" + politica.getId() + "/");
-            r.setTotalArchivos(0);
-            r.setTotalBytes(0);
-            r.setActivo(true);
-            r.setFechaCreacion(LocalDateTime.now());
-            repoRepo.save(r);
-            creados++;
+            if (repo == null) {
+                repo = new RepositorioDocumental();
+                repo.setTramiteId(tramite.getId());
+                repo.setPoliticaId(tramite.getPoliticaId());
+                repo.setNombre("Repositorio - Tramite " + tramite.getId());
+                repo.setBucketKey("tramites/" + tramite.getId() + "/");
+                repo.setTotalArchivos(0);
+                repo.setTotalBytes(0);
+                repo.setActivo(true);
+                repo.setFechaCreacion(LocalDateTime.now());
+                repo = repoRepo.save(repo);
+                creados++;
+            }
+
+            if (tramite.getRepositorioId() == null) {
+                tramite.setRepositorioId(repo.getId());
+                tramiteRepo.save(tramite);
+            }
         }
         log.info("[Seeder] RepositorioDocumental OK ({} contenedores creados)", creados);
     }

@@ -1,10 +1,8 @@
 package com.example.demo.config.seeders;
 
-import com.example.demo.models.Adjunto;
 import com.example.demo.models.EstadoSeccion;
 import com.example.demo.models.SeccionExpediente;
 import com.example.demo.models.TranscripcionVoz;
-import com.example.demo.repositories.AdjuntoRepository;
 import com.example.demo.repositories.SeccionExpedienteRepository;
 import com.example.demo.repositories.TranscripcionVozRepository;
 import com.example.demo.repositories.UsuarioRepository;
@@ -15,79 +13,38 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Siembra de transcripciones de voz de funcionarios sobre las secciones de
+ * expediente derivadas. La siembra de {@code Adjunto} fue retirada: los
+ * documentos físicos ahora se modelan con {@code DocumentoArchivo} asociado
+ * 1:1 al trámite (ver {@code DocumentoArchivoService.subirPorTramite}).
+ */
 @Component
 @Slf4j
 public class AdjuntoSeeder {
 
-    @Autowired private AdjuntoRepository adjuntoRepository;
     @Autowired private TranscripcionVozRepository transcripcionRepository;
     @Autowired private SeccionExpedienteRepository seccionRepository;
     @Autowired private UsuarioRepository usuarioRepository;
 
     public void seed() {
-        if (adjuntoRepository.count() > 0) {
-            log.info("[Seeder] Adjuntos ya existen, omitiendo");
+        if (transcripcionRepository.count() > 0) {
+            log.info("[Seeder] Transcripciones ya existen, omitiendo");
             return;
         }
 
-        String funcAtcId = userId("func_atc@cre.bo");
         String funcTecId = userId("funcionario@cre.bo");
-        String funcOpeId = userId("func_ope@cre.bo");
 
-        // Adjuntos en secciones "completado" (primera seccion de cada expediente activo)
         List<SeccionExpediente> secciones = seccionRepository.findAll();
 
         secciones.stream()
-                .filter(s -> EstadoSeccion.esDerivada(s.getEstado()) && s.getOrdenSeccion() == 1)
-                .forEach(s -> {
-                    crearAdjunto(s.getId(), "cedula_identidad.pdf",
-                            "application/pdf", "/uploads/ci/cedula_7654321.pdf",
-                            245_760L, funcAtcId, s.getFechaCompletado());
-                    crearAdjunto(s.getId(), "plano_inmueble.jpg",
-                            "image/jpeg", "/uploads/planos/plano_245.jpg",
-                            1_024_000L, funcAtcId, s.getFechaCompletado());
-                });
-
-        secciones.stream()
                 .filter(s -> EstadoSeccion.esDerivada(s.getEstado()) && s.getOrdenSeccion() == 2)
-                .forEach(s -> {
-                    crearAdjunto(s.getId(), "informe_inspeccion_tecnica.pdf",
-                            "application/pdf", "/uploads/inspecciones/insp_" + s.getId() + ".pdf",
-                            512_000L, funcTecId, s.getFechaCompletado());
-                    crearAdjunto(s.getId(), "foto_sitio_01.jpg",
-                            "image/jpeg", "/uploads/fotos/foto_" + s.getId() + "_01.jpg",
-                            2_048_000L, funcTecId, s.getFechaCompletado());
-                    crearTranscripcion(s.getId(), funcTecId,
-                            "La instalacion presenta condiciones optimas, distancia a la red aproximadamente 12 metros, "
-                            + "no requiere obra civil previa. Recomiendo proceder con la conexion monofasica.",
-                            45.5f, 0.94f, s.getFechaCompletado());
-                });
+                .forEach(s -> crearTranscripcion(s.getId(), funcTecId,
+                        "La instalacion presenta condiciones optimas, distancia a la red aproximadamente 12 metros, "
+                        + "no requiere obra civil previa. Recomiendo proceder con la conexion monofasica.",
+                        45.5f, 0.94f, s.getFechaCompletado()));
 
-        secciones.stream()
-                .filter(s -> EstadoSeccion.esDerivada(s.getEstado()) && s.getOrdenSeccion() == 5)
-                .forEach(s -> {
-                    crearAdjunto(s.getId(), "acta_cierre_conexion.pdf",
-                            "application/pdf", "/uploads/actas/acta_cierre_" + s.getId() + ".pdf",
-                            380_000L, funcOpeId, s.getFechaCompletado());
-                    crearAdjunto(s.getId(), "foto_medidor_instalado.jpg",
-                            "image/jpeg", "/uploads/medidores/med_MED20240421.jpg",
-                            1_536_000L, funcOpeId, s.getFechaCompletado());
-                });
-
-        log.info("[Seeder] Adjuntos y transcripciones OK");
-    }
-
-    private void crearAdjunto(String seccionId, String nombre, String mime,
-                               String url, long tamano, String subidoPorId, LocalDateTime fecha) {
-        Adjunto a = new Adjunto();
-        a.setSeccionId(seccionId);
-        a.setNombreArchivo(nombre);
-        a.setTipoMime(mime);
-        a.setUrlAlmacenamiento(url);
-        a.setTamanoBytes(tamano);
-        a.setSubidoPorId(subidoPorId);
-        a.setFechaSubida(fecha != null ? fecha : LocalDateTime.now());
-        adjuntoRepository.save(a);
+        log.info("[Seeder] Transcripciones OK");
     }
 
     private void crearTranscripcion(String seccionId, String funcionarioId, String texto,

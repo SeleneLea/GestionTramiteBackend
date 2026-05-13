@@ -79,6 +79,13 @@ public class IaProxyService {
         return postJson("/reportes/consulta-natural", Map.of("consulta", consulta));
     }
 
+    // ── CU-46 · clasificar intención del asistente (modelo TensorFlow propio) ──
+
+    public Map<String, Object> clasificarIntencion(String consulta) {
+        return postJson("/nlp/clasificar-intencion",
+                Map.of("consulta", consulta != null ? consulta : ""));
+    }
+
     // ── CU-42 · ruta óptima ──────────────────────────────────────────────────
 
     public Map<String, Object> rutaOptima(String tramiteId, String politicaId,

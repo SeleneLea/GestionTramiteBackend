@@ -33,7 +33,9 @@ public class ColaboracionSeeder {
         }
 
         String diagramaId  = diagramas.get(0).getId();
+        String diag2Id     = diagramas.size() > 1 ? diagramas.get(1).getId() : diagramaId;
         String adminId     = userId("admin@cre.bo");
+        String admin2Id    = userId("admin2@cre.bo");
         String funcTecId   = userId("funcionario@cre.bo");
         String funcLegId   = userId("func_leg@cre.bo");
         String funcOpeId   = userId("func_ope@cre.bo");
@@ -52,7 +54,14 @@ public class ColaboracionSeeder {
         crear(diagramaId, adminId, funcOpeId, "visor", "pendiente",
                 now.minusDays(2), null);
 
-        log.info("[Seeder] Colaboraciones OK (aceptada x2, pendiente x1)");
+        // --- "Compartidos CONMIGO" del admin principal: admin2 lo invita a colaborar ---
+        // (así su pantalla "Compartidos conmigo" muestra datos de una vez)
+        crear(diagramaId, admin2Id, adminId, "editor", "aceptada",
+                now.minusDays(5), now.minusDays(4));
+        crear(diag2Id, admin2Id, adminId, "visualizador", "pendiente",
+                now.minusDays(1), null);
+
+        log.info("[Seeder] Colaboraciones OK (admin invita x3; admin2 invita al admin x2)");
     }
 
     private void crear(String diagramaId, String adminId, String invitadoId,

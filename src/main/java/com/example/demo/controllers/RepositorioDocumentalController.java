@@ -12,29 +12,22 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api")
 @Tag(name = "Repositorios documentales",
-     description = "CU-32 — repositorio asociado 1:1 a cada política")
+     description = "CU-32 — repositorio asociado 1:1 a cada trámite")
 public class RepositorioDocumentalController {
 
     @Autowired
     private RepositorioDocumentalService service;
 
-    @PostMapping("/politicas/{politicaId}/repositorio")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
-    @Operation(summary = "Crear repositorio (reintento manual)",
-               description = "Idempotente. El flujo normal lo crea automáticamente al hacer POST /api/politicas. Este endpoint sirve para reintentar si la creación auto falló (p. ej. S3 caído).")
-    public ResponseEntity<RepositorioDocumental> crear(@PathVariable String politicaId) {
-        return ResponseEntity.ok(service.crearAlGuardarPolitica(politicaId));
-    }
-
-    @GetMapping("/politicas/{politicaId}/repositorio")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<RepositorioDocumental> obtener(@PathVariable String politicaId) {
-        return ResponseEntity.ok(service.buscarPorPolitica(politicaId));
-    }
-
     @GetMapping("/repositorios/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<RepositorioDocumental> buscar(@PathVariable String id) {
         return ResponseEntity.ok(service.buscarPorId(id));
+    }
+
+    @GetMapping("/tramites/{tramiteId}/repositorio")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Obtener el repositorio documental del trámite")
+    public ResponseEntity<RepositorioDocumental> obtenerPorTramite(@PathVariable String tramiteId) {
+        return ResponseEntity.ok(service.buscarPorTramite(tramiteId));
     }
 }

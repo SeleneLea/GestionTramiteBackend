@@ -33,13 +33,14 @@ public class DocumentoArchivoController {
 
     // ── CU-33 · Subir documento ──────────────────────────────────────────────
 
-    @PostMapping(value = "/repositorios/{repositorioId}/documentos", consumes = "multipart/form-data")
+    @PostMapping(value = "/tramites/{tramiteId}/documentos", consumes = "multipart/form-data")
     @PreAuthorize("hasAnyRole('FUNCIONARIO','ADMINISTRADOR','CLIENTE')")
-    @Operation(summary = "Subir documento nuevo (versión 1)")
+    @Operation(summary = "Subir documento nuevo (versión 1) al trámite")
     public ResponseEntity<DocumentoArchivoResponse> subir(
-            @PathVariable String repositorioId,
-            @RequestParam String tramiteId,
+            @PathVariable String tramiteId,
             @RequestParam String actividadId,
+            @RequestParam(required = false) String documentoRequeridoId,
+            @RequestParam(required = false) String corrigeDocumentoId,
             @RequestParam(required = false) String nodoId,
             @RequestParam String tipoDocumento,
             @RequestParam String nombreLogico,
@@ -48,8 +49,8 @@ public class DocumentoArchivoController {
             Authentication auth,
             HttpServletRequest request) {
 
-        DocumentoArchivoResponse resp = docService.subir(
-                repositorioId, tramiteId, actividadId, nodoId,
+        DocumentoArchivoResponse resp = docService.subirPorTramite(
+                tramiteId, actividadId, documentoRequeridoId, corrigeDocumentoId, nodoId,
                 tipoDocumento, nombreLogico, obligatorio,
                 archivo,
                 auth.getName(), rolDe(auth),

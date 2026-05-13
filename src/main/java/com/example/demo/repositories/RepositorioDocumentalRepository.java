@@ -8,5 +8,5 @@ import java.util.Optional;
 
 @Repository
 public interface RepositorioDocumentalRepository extends MongoRepository<RepositorioDocumental, String> {
-    Optional<RepositorioDocumental> findByPoliticaId(String politicaId);
+    Optional<RepositorioDocumental> findByTramiteId(String tramiteId);
 }

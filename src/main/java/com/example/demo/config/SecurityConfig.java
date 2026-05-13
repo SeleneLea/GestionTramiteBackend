@@ -136,12 +136,11 @@ public class SecurityConfig {
                 .requestMatchers("/api/historial/**").authenticated()
 
                 // ===== Parte 2 · Gestión documental =====
-                // Crear repositorio (reintento manual) — solo admin
-                .requestMatchers(HttpMethod.POST, "/api/politicas/*/repositorio").hasRole("ADMINISTRADOR")
-                .requestMatchers(HttpMethod.GET,  "/api/politicas/*/repositorio").authenticated()
+                // Repositorio 1:1 al trámite — lectura para cualquier autenticado
                 .requestMatchers(HttpMethod.GET,  "/api/repositorios/**").authenticated()
-                // Subir documento — funcionario/admin/cliente
-                .requestMatchers(HttpMethod.POST, "/api/repositorios/*/documentos").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR", "CLIENTE")
+                .requestMatchers(HttpMethod.GET,  "/api/tramites/*/repositorio").authenticated()
+                // Subir documento al trámite — funcionario/admin/cliente
+                .requestMatchers(HttpMethod.POST, "/api/tramites/*/documentos").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR", "CLIENTE")
                 // Versionar — solo funcionario/admin
                 .requestMatchers(HttpMethod.POST, "/api/documentos/*/versiones").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR")
                 // Auditoría — solo admin

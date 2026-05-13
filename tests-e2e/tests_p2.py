@@ -103,31 +103,24 @@ def test_microservicio_health(ctx: Ctx) -> bool:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_cu32_repositorio(ctx: Ctx) -> None:
-    section("CU-32 · Repositorio documental por política")
+    section("CU-32 · Repositorio documental por trámite")
     res = ctx.resultado
-    if not ctx.politica_id_activa:
-        skip("CU-32", "no hay política activa", res)
+    if not ctx.tramite_id:
+        skip("CU-32", "no hay tramite_id", res)
         return
 
-    r = get(f"/politicas/{ctx.politica_id_activa}/repositorio", token=ctx.token_admin)
+    r = get(f"/tramites/{ctx.tramite_id}/repositorio", token=ctx.token_admin)
     if r.status_code == 200:
         body = r.json()
         ctx.repositorio_id = body.get("id", "")
-        ok("GET /politicas/{id}/repositorio", r.status_code,
+        ok("GET /tramites/{id}/repositorio", r.status_code,
            f"id={ctx.repositorio_id} archivos={body.get('totalArchivos','?')}", res)
     elif r.status_code in (400, 404):
-        # No tiene repo todavía — reintentar creación manual
-        r2 = post(f"/politicas/{ctx.politica_id_activa}/repositorio",
-                  token=ctx.token_admin)
-        if r2.status_code in (200, 201):
-            body = r2.json()
-            ctx.repositorio_id = body.get("id", "")
-            ok("POST /politicas/{id}/repositorio (reintento)", r2.status_code,
-               f"creado id={ctx.repositorio_id}", res)
-        else:
-            fail("CU-32 obtener/crear repositorio", r2.status_code, r2.text[:120], res)
+        # El repositorio se crea al iniciar el trámite o de forma perezosa en la
+        # primera subida; un trámite recién creado puede no tenerlo aún.
+        skip("CU-32", "el trámite aún no tiene repositorio (se crea al subir)", res)
     else:
-        fail("GET /politicas/{id}/repositorio", r.status_code, r.text[:120], res)
+        fail("GET /tramites/{id}/repositorio", r.status_code, r.text[:120], res)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -140,9 +133,6 @@ def test_cu33_34_35_s3(ctx: Ctx) -> None:
 
     if SKIP_S3:
         skip("CU-33/34/35", "SKIP_S3=1", res)
-        return
-    if not ctx.repositorio_id:
-        skip("CU-33/34/35", "sin repositorio_id", res)
         return
     if not ctx.tramite_id or not ctx.actividad_id:
         skip("CU-33/34/35", "sin tramite_id/actividad_id", res)
@@ -164,20 +154,20 @@ def test_cu33_34_35_s3(ctx: Ctx) -> None:
         "nombreLogico": f"_E2E_{int(time.time())}",
         "obligatorio": "false",
     }
-    r = post(f"/repositorios/{ctx.repositorio_id}/documentos",
+    r = post(f"/tramites/{ctx.tramite_id}/documentos",
              token=ctx.token_admin, files=files, data=data)
     # S3 deshabilitado: backend lanza IllegalStateException → 500 con mensaje claro.
     # No es un bug, es config — reportar como WARN.
     if r.status_code == 500 and "S3" in (r.text or ""):
-        warn("CU-33 POST /repositorios/{id}/documentos", r.status_code,
+        warn("CU-33 POST /tramites/{id}/documentos", r.status_code,
              "S3 deshabilitado (aws.enabled=false)", res)
         return
     if r.status_code == 503:
-        warn("CU-33 POST /repositorios/{id}/documentos", r.status_code,
+        warn("CU-33 POST /tramites/{id}/documentos", r.status_code,
              "S3 caído o credenciales inválidas", res)
         return
     if r.status_code not in (200, 201):
-        fail("CU-33 POST /repositorios/{id}/documentos", r.status_code, r.text[:120], res)
+        fail("CU-33 POST /tramites/{id}/documentos", r.status_code, r.text[:120], res)
         return
     body = r.json()
     ctx.documento_archivo_id = body.get("documentoArchivoId", "")

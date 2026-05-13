@@ -1,16 +1,22 @@
 package com.example.demo.services;
 
+import com.example.demo.dto.CompartidoConmigoResponse;
 import com.example.demo.dto.InvitarColaboradorRequest;
 import com.example.demo.models.ColaboracionDiagrama;
 import com.example.demo.models.DiagramaWorkflow;
 import com.example.demo.models.Notificacion;
+import com.example.demo.models.PoliticaNegocio;
 import com.example.demo.repositories.ColaboracionDiagramaRepository;
 import com.example.demo.repositories.DiagramaWorkflowRepository;
 import com.example.demo.repositories.NotificacionRepository;
+import com.example.demo.repositories.PoliticaNegocioRepository;
+import com.example.demo.repositories.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class ColaboracionService {
@@ -23,6 +29,12 @@ public class ColaboracionService {
 
     @Autowired
     private NotificacionRepository notificacionRepo;
+
+    @Autowired
+    private PoliticaNegocioRepository politicaRepo;
+
+    @Autowired
+    private UsuarioRepository usuarioRepo;
 
     public ColaboracionDiagrama invitar(String diagramaId, InvitarColaboradorRequest request, String adminId) {
         DiagramaWorkflow diagrama = diagramaRepo.findById(diagramaId)
@@ -77,5 +89,39 @@ public class ColaboracionService {
         colab.setFechaRespuesta(LocalDateTime.now());
 
         return colaboracionRepo.save(colab);
+    }
+
+    /**
+     * Diagramas compartidos CON el usuario (vista "Compartidos conmigo").
+     * Devuelve las invitaciones pendientes y aceptadas (oculta las rechazadas),
+     * resolviendo el nombre del diagrama/política y quién lo invitó.
+     */
+    public List<CompartidoConmigoResponse> compartidosConmigo(String usuarioId) {
+        List<CompartidoConmigoResponse> out = new ArrayList<>();
+        for (ColaboracionDiagrama c : colaboracionRepo.findByInvitadoId(usuarioId)) {
+            if ("rechazada".equalsIgnoreCase(c.getEstado())) continue;
+
+            DiagramaWorkflow dia = diagramaRepo.findById(c.getDiagramaId()).orElse(null);
+            String diagramaNombre = dia != null && dia.getNombre() != null
+                    ? dia.getNombre() : "(diagrama eliminado)";
+
+            String politicaNombre = null;
+            if (dia != null && dia.getPoliticaId() != null) {
+                politicaNombre = politicaRepo.findById(dia.getPoliticaId())
+                        .map(PoliticaNegocio::getNombre).orElse(null);
+            }
+
+            String invitadoPor = usuarioRepo.findById(c.getAdminInvitadorId())
+                    .map(u -> ((u.getNombre() != null ? u.getNombre() : "") + " "
+                            + (u.getApellido() != null ? u.getApellido() : "")).trim())
+                    .filter(s -> !s.isEmpty())
+                    .orElse("—");
+
+            out.add(new CompartidoConmigoResponse(
+                    c.getId(), c.getDiagramaId(), diagramaNombre, politicaNombre,
+                    c.getRolColaboracion(), c.getEstado(), invitadoPor,
+                    c.getFechaInvitacion(), c.getFechaRespuesta()));
+        }
+        return out;
     }
 }

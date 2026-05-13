@@ -131,10 +131,10 @@ public class AiIntegrationService {
                 }
             } else {
                 // n8n no respondió válido: degradar a la base de conocimiento local.
-                resp = agenteKb.responder(input, rolId);
+                resp = agenteKb.responderInteligente(input, rolId);
             }
         } catch (Exception e) {
-            resp = agenteKb.responder(input, rolId);
+            resp = agenteKb.responderInteligente(input, rolId);
         }
 
         long end = System.currentTimeMillis();

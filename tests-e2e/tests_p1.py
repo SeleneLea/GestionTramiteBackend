@@ -395,14 +395,14 @@ def test_historial(ctx: Ctx) -> None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_adjuntos_legacy(ctx: Ctx) -> None:
-    section("Adjuntos legacy (filesystem — pre-Parte 2)")
+    section("Documentos del trámite (lista)")
     res = ctx.resultado
     if not ctx.tramite_id:
-        skip("GET /tramites/{id}/adjuntos", "no hay tramite_id", res)
+        skip("GET /tramites/{id}/documentos", "no hay tramite_id", res)
         return
-    r = get(f"/tramites/{ctx.tramite_id}/adjuntos", token=ctx.token_admin)
-    expect_2xx("GET /tramites/{id}/adjuntos", r, res,
-               lambda b: f"{len(b) if isinstance(b, list) else 0} adjuntos")
+    r = get(f"/tramites/{ctx.tramite_id}/documentos", token=ctx.token_admin)
+    expect_2xx("GET /tramites/{id}/documentos", r, res,
+               lambda b: f"{len(b) if isinstance(b, list) else 0} documentos")
 
 
 # ──────────────────────────────────────────────────────────────────────────────

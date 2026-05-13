@@ -80,6 +80,14 @@ public class PoliticaNegocioController {
         return ResponseEntity.ok(politicaService.obtenerDocumentosRequeridos(id));
     }
 
+    @GetMapping("/{id}/documentos-iniciales")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Documentos del primer nodo (a subir al iniciar)",
+               description = "Requisitos de la actividad de entrada del flujo, para que el cliente los suba al iniciar el trámite")
+    public ResponseEntity<ActividadDocumentosDTO> documentosIniciales(@PathVariable String id) {
+        return ResponseEntity.ok(politicaService.documentosIniciales(id));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     @Operation(summary = "Eliminar política", description = "Solo se pueden eliminar políticas en estado 'borrador' o 'archivada'")

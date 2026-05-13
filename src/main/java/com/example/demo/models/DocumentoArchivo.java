@@ -39,6 +39,13 @@ public class DocumentoArchivo {
     private String actividadId;
     private String nodoId;
 
+    /**
+     * FK al {@link Documento} del catálogo (el REQUISITO que este archivo cumple).
+     * Lo elige el cliente al subir. {@code null} para subidas libres / documentos legacy.
+     * La compuerta del motor usa esto para saber qué requisitos obligatorios ya están cubiertos.
+     */
+    private String documentoRequeridoId;
+
     private String nombreLogico;
     private String tipoDocumento;
     private boolean obligatorio;

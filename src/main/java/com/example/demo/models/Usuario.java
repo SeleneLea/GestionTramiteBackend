@@ -32,6 +32,8 @@ public class Usuario {
 
     private String tipo;
     private String telefono;
+    private String dni;
+    private String direccion;
     private boolean activo;
 
     private LocalDateTime fechaRegistro;

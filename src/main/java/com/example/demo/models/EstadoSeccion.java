@@ -13,6 +13,12 @@ public enum EstadoSeccion {
 
     /** Nodo futuro: el trámite aún no llegó. */
     BLOQUEADA("Bloqueada"),
+    /**
+     * El trámite llegó a la actividad pero faltan documentos OBLIGATORIOS del CLIENTE.
+     * Lo pone el SISTEMA (compuerta de avance), no un funcionario. El cliente sube los
+     * documentos faltantes y el sistema reanuda (→ PENDIENTE_RECEPCION) automáticamente.
+     */
+    PENDIENTE_DOCUMENTOS("Pendiente de documentos"),
     /** Llegó a la bandeja del responsable, pero aún no lo aceptó. */
     PENDIENTE_RECEPCION("Pendiente de recepcion"),
     /** El responsable lo aceptó y está trabajando en él. */
@@ -63,6 +69,7 @@ public enum EstadoSeccion {
         }
         String low = v.toLowerCase();
         if (low.startsWith("bloque")) return BLOQUEADA;
+        if (low.startsWith("pendiente de doc") || low.startsWith("pendiente_doc")) return PENDIENTE_DOCUMENTOS;
         if (low.startsWith("pendiente")) return PENDIENTE_RECEPCION;
         if (low.startsWith("en_curso") || low.startsWith("en curso")
                 || low.startsWith("en_ejec") || low.startsWith("en ejec")) return EN_EJECUCION;

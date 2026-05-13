@@ -37,6 +37,9 @@ public class UsuarioSeeder {
                 "administrador", rolAdmin,   null);
         crear("Super",  "Usuario",   "superuser@cre.bo",    "super12345",
                 "administrador", rolSuper,   null);
+        // 2º admin: sirve para la demo de "Compartidos conmigo" (invita al admin principal)
+        crear("Ana",    "Gestora",   "admin2@cre.bo",       "admin12345",
+                "administrador", rolAdmin,   null);
 
         // --- Funcionarios por departamento ---
         crear("Carlos",  "Lima",      "funcionario@cre.bo",  "func12345",

@@ -76,9 +76,9 @@ public class VersionadoService {
         int nuevoNumero = actual.getNumeroVersion() + 1;
         String uuid = UUID.randomUUID().toString();
         String ext = extensionDe(archivo.getOriginalFilename());
-        String s3Key = "politicas/" + doc.getPoliticaId()
-                + "/tramites/" + doc.getTramiteId() + "/"
-                + uuid + "-v" + nuevoNumero + ext;
+        // s3Key derivada del bucketKey del repo (ya es "tramites/{tramiteId}/")
+        var repo = repositorioService.buscarPorId(doc.getRepositorioId());
+        String s3Key = repo.getBucketKey() + uuid + "-v" + nuevoNumero + ext;
 
         // Sube primero a S3; si falla, no se modifica nada en Mongo
         s3.upload(s3Key, new ByteArrayInputStream(bytes),

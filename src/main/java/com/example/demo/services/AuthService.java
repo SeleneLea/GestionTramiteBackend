@@ -39,6 +39,8 @@ public class AuthService {
         u.setRolId(rol.getId());
         u.setTipo("cliente");
         u.setTelefono(req.getTelefono());
+        u.setDni(req.getDni());
+        u.setDireccion(req.getDireccion());
         u.setActivo(true);
         u.setFechaRegistro(LocalDateTime.now());
 

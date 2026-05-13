@@ -121,19 +121,19 @@ class WorkflowAvanceIT extends BaseIntegrationIT {
         assertThat(r.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
-    // ─── CU-08: Adjuntos de un trámite (GET) ────────────────────────────────
+    // ─── CU-33: Documentos de un trámite (GET) ──────────────────────────────
 
     @Test
-    @DisplayName("CU-08: GET /tramites/{id}/adjuntos devuelve lista (puede estar vacía)")
-    void listarAdjuntos() throws Exception {
+    @DisplayName("CU-33: GET /tramites/{id}/documentos devuelve lista (puede estar vacía)")
+    void listarDocumentos() throws Exception {
         JsonNode todos = getJson("/tramites", adminHeaders());
         String tramiteId = todos.get(0).path("id").asText();
 
-        JsonNode adj = getJson("/tramites/" + tramiteId + "/adjuntos", clienteHeaders());
-        assertThat(adj.isArray()).isTrue();
+        JsonNode docs = getJson("/tramites/" + tramiteId + "/documentos", clienteHeaders());
+        assertThat(docs.isArray()).isTrue();
 
-        JsonNode adjFiltrado = getJson("/tramites/" + tramiteId + "/adjuntos?actividadId=xxx", clienteHeaders());
-        assertThat(adjFiltrado.isArray()).isTrue();
+        JsonNode docsFiltrado = getJson("/tramites/" + tramiteId + "/documentos?actividadId=xxx", clienteHeaders());
+        assertThat(docsFiltrado.isArray()).isTrue();
     }
 
     // ─── Listados auxiliares de TramiteController ───────────────────────────

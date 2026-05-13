@@ -27,6 +27,9 @@ public class Tramite {
     private String politicaId;
     private String expedienteId;
 
+    /** FK 1:1 al RepositorioDocumental del trámite. */
+    private String repositorioId;
+
     @Indexed
     private String estadoActual;
 

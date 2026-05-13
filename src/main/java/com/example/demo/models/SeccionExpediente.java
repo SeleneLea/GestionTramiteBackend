@@ -7,6 +7,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -27,5 +28,12 @@ public class SeccionExpediente {
 
     private LocalDateTime fechaAsignacion;
     private LocalDateTime fechaCompletado;
+
+    /**
+     * Caso OBSERVADO: ids de {@link DocumentoArchivo} que el funcionario marcó como
+     * "mal" al devolver el trámite. El cliente ve solo estos para corregir; al re-subir
+     * uno (con {@code corrigeDocumentoId}) se quita de esta lista.
+     */
+    private List<String> documentosObservados;
 }
 

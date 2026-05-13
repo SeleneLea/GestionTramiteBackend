@@ -9,6 +9,7 @@ import java.util.List;
 @Repository
 public interface ColaboracionDiagramaRepository extends MongoRepository<ColaboracionDiagrama, String> {
     List<ColaboracionDiagrama> findByDiagramaId(String diagramaId);
+    List<ColaboracionDiagrama> findByInvitadoId(String invitadoId);
     List<ColaboracionDiagrama> findByInvitadoIdAndEstado(String invitadoId, String estado);
     long countByInvitadoIdAndEstado(String invitadoId, String estado);
 }

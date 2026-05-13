@@ -27,7 +27,11 @@ public class PoliticaNegocio {
     private String diagramaId;
     private String creadorId;
 
-    /** CU-32 — FK al RepositorioDocumental (1:1). Se rellena al crear la política. */
+    /**
+     * CU-32 — FK al RepositorioDocumental (1:1). Se rellenaba al crear la política.
+     * @deprecated el repositorio ahora es por trámite; este campo queda sin escritor.
+     */
+    @Deprecated
     private String repositorioId;
 
     private int versionActual;

@@ -1,5 +1,6 @@
 package com.example.demo.controllers;
 
+import com.example.demo.dto.ActualizarPerfilRequest;
 import com.example.demo.dto.CrearUsuarioAdminRequest;
 import com.example.demo.models.Usuario;
 import com.example.demo.services.AuthService;
@@ -31,6 +32,13 @@ public class UsuarioController {
         return usuarioService.buscarPorId(auth.getName())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Editar mi propio perfil", description = "Actualiza nombre, apellido, teléfono, DNI y dirección del usuario autenticado. No cambia email, tipo, rol ni contraseña.")
+    public ResponseEntity<Usuario> actualizarMiPerfil(@RequestBody ActualizarPerfilRequest req, Authentication auth) {
+        return ResponseEntity.ok(usuarioService.actualizarPerfilPropio(auth.getName(), req));
     }
 
     @PostMapping("/crear")

@@ -15,6 +15,20 @@ public class MongoIndexConfig {
 
     @PostConstruct
     public void initIndexes() {
+        // Migración — el repositorio documental pasó de 1:1 por POLÍTICA a 1:1 por TRÁMITE.
+        // El índice único viejo sobre politicaId ya no aplica (varios trámites comparten política);
+        // si quedó del modelo anterior, hay que borrarlo o el 2º repo de una misma política rompe (E11000).
+        // El índice único+sparse nuevo sobre tramiteId lo crea auto-index-creation desde @Indexed.
+        try {
+            mongoTemplate.indexOps("repositorios_documentales").getIndexInfo().stream()
+                    .filter(ix -> ix.isUnique()
+                            && ix.getIndexFields().size() == 1
+                            && "politicaId".equals(ix.getIndexFields().get(0).getKey()))
+                    .forEach(ix -> mongoTemplate.indexOps("repositorios_documentales").dropIndex(ix.getName()));
+        } catch (RuntimeException e) {
+            // Colección aún sin índices o inexistente: no hay nada que migrar.
+        }
+
         // Trámites — búsqueda por estado + fecha
         mongoTemplate.indexOps("tramites")
                 .ensureIndex(new Index()

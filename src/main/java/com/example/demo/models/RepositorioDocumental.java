@@ -10,7 +10,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.LocalDateTime;
 
 /**
- * CU-32 — Repositorio documental asociado 1:1 a una PoliticaNegocio.
+ * CU-32 — Repositorio documental asociado 1:1 a un Tramite.
  */
 @Data
 @NoArgsConstructor
@@ -21,11 +21,14 @@ public class RepositorioDocumental {
     @Id
     private String id;
 
-    @Indexed(unique = true)
+    @Indexed(unique = true, sparse = true)
+    private String tramiteId;
+
+    // Se conserva: la validación de permisos lo usa.
     private String politicaId;
 
     private String nombre;
-    private String bucketKey;       // prefijo S3: politicas/{politicaId}/
+    private String bucketKey;       // prefijo S3: tramites/{tramiteId}/
 
     private long totalArchivos;
     private long totalBytes;

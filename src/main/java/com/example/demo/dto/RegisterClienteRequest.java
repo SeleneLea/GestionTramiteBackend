@@ -11,7 +11,6 @@ public class RegisterClienteRequest {
     @NotBlank
     private String nombre;
 
-    @NotBlank
     private String apellido;
 
     @NotBlank
@@ -23,4 +22,6 @@ public class RegisterClienteRequest {
     private String password;
 
     private String telefono;
+    private String dni;
+    private String direccion;
 }

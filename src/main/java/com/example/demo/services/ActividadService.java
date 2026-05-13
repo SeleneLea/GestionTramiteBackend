@@ -37,6 +37,7 @@ public class ActividadService {
         a.setSalidasPosibles(normalizar(req.getSalidasPosibles()));
         a.setCamposRequeridos(req.getCamposRequeridos());
         a.setDocumentoIds(req.getDocumentoIds());
+        a.setDocumentosRequeridos(req.getDocumentosRequeridos());
         a.setReutilizable(req.isReutilizable());
         a.setFechaCreacion(LocalDateTime.now());
 
@@ -79,6 +80,7 @@ public class ActividadService {
         a.setSalidasPosibles(normalizar(req.getSalidasPosibles()));
         a.setCamposRequeridos(req.getCamposRequeridos());
         a.setDocumentoIds(req.getDocumentoIds());
+        a.setDocumentosRequeridos(req.getDocumentosRequeridos());
         a.setReutilizable(req.isReutilizable());
 
         return actividadRepository.save(a);

@@ -4,13 +4,17 @@ import com.example.demo.dto.DocumentoArchivoResponse;
 import com.example.demo.models.DocumentoArchivo;
 import com.example.demo.models.RepositorioDocumental;
 import com.example.demo.models.VersionDocumento;
+import com.example.demo.models.Tramite;
 import com.example.demo.repositories.DocumentoArchivoRepository;
+import com.example.demo.repositories.TramiteRepository;
 import com.example.demo.repositories.VersionDocumentoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -33,11 +37,49 @@ public class DocumentoArchivoService {
 
     @Autowired private DocumentoArchivoRepository docRepo;
     @Autowired private VersionDocumentoRepository versionRepo;
+    @Autowired private TramiteRepository tramiteRepository;
     @Autowired private RepositorioDocumentalService repositorioService;
     @Autowired private AuditoriaDocumentoService auditoria;
     @Autowired private S3StorageService s3;
     /** CU-36 — Valida que el punto de atención permita escritura antes de subir. */
     @Autowired private PermisoDocumentalService permisoService;
+    /** Compuerta de documentos: tras subir, intenta reanudar si ya no faltan requisitos. */
+    @Autowired @org.springframework.context.annotation.Lazy private WorkflowEngineService workflowEngine;
+
+    /**
+     * Punto de entrada por trámite (CU-33). Resuelve el repositorio 1:1 del
+     * trámite (creándolo de forma idempotente si aún no existe), hace backfill
+     * del {@code repositorioId} en el {@link Tramite} y delega en {@link #subir}.
+     */
+    public DocumentoArchivoResponse subirPorTramite(String tramiteId,
+                                                    String actividadId,
+                                                    String documentoRequeridoId,
+                                                    String corrigeDocumentoId,
+                                                    String nodoId,
+                                                    String tipoDocumento,
+                                                    String nombreLogico,
+                                                    boolean obligatorio,
+                                                    MultipartFile archivo,
+                                                    String usuarioId,
+                                                    String rol,
+                                                    String ip,
+                                                    String userAgent) {
+
+        Tramite tramite = tramiteRepository.findById(tramiteId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Tramite no encontrado"));
+
+        RepositorioDocumental repo =
+                repositorioService.crearAlIniciarTramite(tramiteId, tramite.getPoliticaId());
+
+        if (tramite.getRepositorioId() == null) {
+            tramite.setRepositorioId(repo.getId());
+            tramiteRepository.save(tramite);
+        }
+
+        return subir(repo.getId(), tramiteId, actividadId, documentoRequeridoId, corrigeDocumentoId, nodoId,
+                tipoDocumento, nombreLogico, obligatorio, archivo, usuarioId, rol, ip, userAgent);
+    }
 
     /**
      * Sube un archivo nuevo al repositorio. Si ya hay otro documento del mismo
@@ -47,6 +89,8 @@ public class DocumentoArchivoService {
     public DocumentoArchivoResponse subir(String repositorioId,
                                           String tramiteId,
                                           String actividadId,
+                                          String documentoRequeridoId,
+                                          String corrigeDocumentoId,
                                           String nodoId,
                                           String tipoDocumento,
                                           String nombreLogico,
@@ -78,9 +122,8 @@ public class DocumentoArchivoService {
 
         String uuid = UUID.randomUUID().toString();
         String ext = extensionDe(archivo.getOriginalFilename());
-        String s3Key = repo.getBucketKey()
-                + "tramites/" + tramiteId + "/"
-                + uuid + "-v1" + ext;
+        // bucketKey YA es "tramites/{tramiteId}/" — no concatenar el prefijo otra vez
+        String s3Key = repo.getBucketKey() + uuid + "-v1" + ext;
 
         // 1) Crear DocumentoArchivo
         DocumentoArchivo doc = new DocumentoArchivo();
@@ -88,6 +131,11 @@ public class DocumentoArchivoService {
         doc.setPoliticaId(repo.getPoliticaId());
         doc.setTramiteId(tramiteId);
         doc.setActividadId(actividadId);
+        // Defensivo: limpiar espacios/saltos accidentales para que el match de la
+        // compuerta no falle por whitespace; en blanco se trata como null.
+        doc.setDocumentoRequeridoId(
+                (documentoRequeridoId != null && !documentoRequeridoId.isBlank())
+                        ? documentoRequeridoId.trim() : null);
         doc.setNodoId(nodoId);
         doc.setNombreLogico(nombreLogico);
         doc.setTipoDocumento(tipoDocumento);
@@ -134,7 +182,79 @@ public class DocumentoArchivoService {
                 Map.of("nombreLogico", nombreLogico,
                        "tamanoBytes", bytes.length));
 
+        // 7) Compuerta: si esta subida completó los obligatorios del CLIENTE del paso,
+        //    el sistema reanuda el trámite (PENDIENTE_DOCUMENTOS → PENDIENTE_RECEPCION).
+        try {
+            workflowEngine.reanudarPorDocumentos(tramiteId, actividadId);
+        } catch (RuntimeException ex) {
+            log.warn("Auto-reanudacion por documentos fallo (tramite {} act {}): {}",
+                    tramiteId, actividadId, ex.getMessage());
+        }
+
+        // 8) Caso OBSERVADO: si esta subida corrige un documento que el funcionario marcó
+        //    como "mal", quitarlo de la lista de observados (desaparece de "a corregir")
+        //    y REEMPLAZAR el viejo: marcarlo inactivo (sale de las listas; queda en BD
+        //    para auditoría). El nuevo documento ocupa su lugar.
+        if (corrigeDocumentoId != null && !corrigeDocumentoId.isBlank()) {
+            try {
+                workflowEngine.limpiarDocumentoObservado(tramiteId, corrigeDocumentoId);
+                docRepo.findById(corrigeDocumentoId.trim()).ifPresent(viejo -> {
+                    viejo.setActivo(false);
+                    docRepo.save(viejo);
+                });
+            } catch (RuntimeException ex) {
+                log.warn("Reemplazo de documento observado fallo (tramite {}): {}", tramiteId, ex.getMessage());
+            }
+        }
+
         return toResponse(doc, v, null, null);
+    }
+
+    /**
+     * Crea un documento SEMBRADO (sin MultipartFile, sin validación de permiso ni compuerta):
+     * sube los bytes a S3 + DocumentoArchivo + VersionDocumento #1. Solo para el DocumentoSeeder.
+     */
+    public String seedDocumento(String tramiteId, String politicaId, String actividadId, String nodoId,
+                                String documentoRequeridoId, String nombreLogico, String tipoDocumento,
+                                byte[] bytes, String mimeType) {
+        RepositorioDocumental repo = repositorioService.crearAlIniciarTramite(tramiteId, politicaId);
+        String uuid = UUID.randomUUID().toString();
+        String s3Key = repo.getBucketKey() + uuid + "-v1.pdf";
+
+        DocumentoArchivo doc = new DocumentoArchivo();
+        doc.setRepositorioId(repo.getId());
+        doc.setPoliticaId(repo.getPoliticaId());
+        doc.setTramiteId(tramiteId);
+        doc.setActividadId(actividadId);
+        doc.setDocumentoRequeridoId(documentoRequeridoId);
+        doc.setNodoId(nodoId);
+        doc.setNombreLogico(nombreLogico);
+        doc.setTipoDocumento(tipoDocumento);
+        doc.setObligatorio(false);
+        doc.setNumeroVersionActual(1);
+        doc.setCreadoPorId("seed");
+        doc.setFechaCreacion(LocalDateTime.now());
+        doc.setActivo(true);
+        doc = docRepo.save(doc);
+
+        s3.upload(s3Key, new ByteArrayInputStream(bytes), mimeType, bytes.length);
+
+        VersionDocumento v = new VersionDocumento();
+        v.setDocumentoArchivoId(doc.getId());
+        v.setNumeroVersion(1);
+        v.setS3Bucket(s3.bucket());
+        v.setS3Key(s3Key);
+        v.setTamanoBytes(bytes.length);
+        v.setMimeType(mimeType);
+        v.setHashSha256(sha256(bytes));
+        v.setAutorId("seed");
+        v.setFechaCreacion(LocalDateTime.now());
+        v = versionRepo.save(v);
+
+        doc.setVersionActualId(v.getId());
+        docRepo.save(doc);
+        repositorioService.incrementarTotales(repo.getId(), bytes.length);
+        return doc.getId();
     }
 
     /**
@@ -161,9 +281,8 @@ public class DocumentoArchivoService {
 
         String uuid = UUID.randomUUID().toString();
         String ext = extensionDe(archivo.getOriginalFilename());
-        String s3Key = repo.getBucketKey()
-                + "tramites/" + tramiteId + "/resolucion/"
-                + uuid + "-v1" + ext;
+        // bucketKey YA es "tramites/{tramiteId}/" — solo añadir el subprefijo "resolucion/"
+        String s3Key = repo.getBucketKey() + "resolucion/" + uuid + "-v1" + ext;
 
         DocumentoArchivo doc = new DocumentoArchivo();
         doc.setRepositorioId(repositorioId);

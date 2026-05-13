@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -27,6 +28,136 @@ public class AgenteAsistenciaService {
 
     @Autowired
     private TramiteRepository tramiteRepo;
+
+    @Autowired
+    private IaProxyService iaProxy;
+
+    /**
+     * Entrada "inteligente": clasifica la intención con el MODELO TensorFlow del
+     * microservicio (/nlp/clasificar-intencion) y responde según ella. Si el
+     * microservicio o el modelo no están disponibles, cae al detector por
+     * palabras clave (responder), así nunca se rompe.
+     */
+    public AgenteResponse responderInteligente(AgenteRequest req, String rol) {
+        try {
+            Map<String, Object> r = iaProxy.clasificarIntencion(req.getConsulta());
+            Object intObj = r.get("intencion");
+            String intencion = intObj != null ? intObj.toString() : null;
+            if (intencion != null && !intencion.isBlank()) {
+                return responderPorIntencion(intencion, req, rol);
+            }
+        } catch (Exception e) {
+            // microservicio/TF no disponible -> KB por palabras (degradación)
+        }
+        return responder(req, rol);
+    }
+
+    /** Respuesta a partir de la INTENCIÓN predicha por el modelo ML (TensorFlow). */
+    public AgenteResponse responderPorIntencion(String intencion, AgenteRequest req, String rol) {
+        String consulta = req.getConsulta() == null ? "" : req.getConsulta().toLowerCase(Locale.ROOT);
+        String modulo = req.getModuloActivo() == null ? "" : req.getModuloActivo().toLowerCase(Locale.ROOT);
+        String tramiteId = req.getTramiteIdOpcional();
+
+        AgenteResponse resp = new AgenteResponse();
+        resp.setFuente("ml-tf");
+
+        switch (intencion) {
+            case "recomendar_tramite":
+                return recomendarTramite(consulta);
+
+            case "saludo":
+                resp.setRespuesta(saludoContextual(modulo, rol));
+                resp.setAccion(sugerirAccion(modulo, rol));
+                return resp;
+
+            case "capacidades":
+                resp.setRespuesta("Puedo ayudarte a: recomendarte el trámite que necesitas (descríbeme tu caso), ver el estado de tus trámites, decirte qué documentos te piden, cómo iniciar uno y tus notificaciones. ¿Con qué empezamos?");
+                resp.setAccion(accionNavegar("Ver mis trámites", "/cliente/tramites"));
+                return resp;
+
+            case "estado_tramite":
+                if (tramiteId != null && !tramiteId.isBlank()) {
+                    Optional<Tramite> t = tramiteRepo.findById(tramiteId);
+                    if (t.isPresent()) {
+                        Tramite tr = t.get();
+                        resp.setRespuesta(String.format(
+                                "Tu trámite %s está en estado: %s. Abre su línea de tiempo para más detalle.",
+                                tr.getCodigo(), tr.getEstadoActual()));
+                        resp.setAccion(accionNavegar("Ver mis trámites", "/cliente/tramites"));
+                        return resp;
+                    }
+                }
+                resp.setRespuesta("Puedes ver el estado de todos tus trámites en \"Mis trámites\". Toca uno para ver su línea de tiempo.");
+                resp.setAccion(accionNavegar("Ver mis trámites", "/cliente/tramites"));
+                return resp;
+
+            case "documentos":
+                resp.setRespuesta("Si tu trámite pide documentos, los verás en \"Completar documentos\" o al abrir el trámite. Sube cada requisito (foto o archivo); cuando estén todos, el trámite avanza solo.");
+                resp.setAccion(accionNavegar("Completar documentos", "/cliente/tramites"));
+                return resp;
+
+            case "como_iniciar":
+                resp.setRespuesta("Para iniciar un trámite ve a \"Explorar\", elige el que necesitas y toca \"Iniciar\". O cuéntame qué necesitas y te recomiendo cuál.");
+                resp.setAccion(accionNavegar("Explorar trámites", "/cliente/tramites"));
+                return resp;
+
+            case "notificaciones":
+                resp.setRespuesta("Recibirás una notificación cuando tu trámite cambie de estado o se te asigne uno nuevo. Revísalas en la campana de la app.");
+                resp.setAccion(accionNavegar("Ver notificaciones", "/cliente/notificaciones"));
+                return resp;
+
+            // ── FUNCIONARIO (web /funcionario) ──
+            case "func_bandeja":
+                resp.setRespuesta("Tu bandeja de entrada reúne los trámites asignados a tu departamento: 1) abre \"Bandeja de entrada\", 2) verás la lista con código, política y antigüedad, 3) ordénala por fecha de llegada o por la prioridad que sugiere la IA (más urgente arriba). Toca cualquier trámite para abrirlo y empezar a atenderlo.");
+                resp.setAccion(accionNavegar("Ir a mi bandeja", "/funcionario/bandeja"));
+                return resp;
+
+            case "func_atender":
+                resp.setRespuesta("Para atender un trámite: 1) ábrelo desde tu bandeja, 2) revisa el expediente y los documentos del cliente, 3) completa tu actividad llenando los campos de tu sección, 4) guarda. Al cerrar tu actividad el trámite avanza solo al siguiente nodo del flujo.");
+                resp.setAccion(accionNavegar("Ir a mi bandeja", "/funcionario/bandeja"));
+                return resp;
+
+            case "func_decidir":
+                resp.setRespuesta("Al cerrar tu actividad eliges la decisión: 1) Aprobar para que continúe, 2) Rechazar para detenerlo, 3) Derivar para enviarlo a otro departamento, u 4) Observar para devolverlo al cliente: marca los documentos a corregir y el sistema le notifica para que los reenvíe. Haz esto desde el trámite abierto en tu bandeja.");
+                resp.setAccion(accionNavegar("Ir a mi bandeja", "/funcionario/bandeja"));
+                return resp;
+
+            case "func_voz":
+                resp.setRespuesta("Para llenar la sección por voz: 1) dentro del expediente toca el ícono de micrófono, 2) dicta los datos con naturalidad (por ejemplo \"nombre Juan Pérez, monto 500\"), 3) la IA transcribe y rellena los campos correspondientes de tu sección activa, 4) revisa y corrige lo que haga falta antes de guardar.");
+                return resp;
+
+            // ── ADMIN (web /admin) ──
+            case "admin_politicas":
+                resp.setRespuesta("Para crear y activar una política de trámite: 1) ve a \"Políticas\" y pulsa \"Nueva política\", 2) define nombre, descripción, categoría y requisitos, 3) guárdala (queda en borrador), 4) cuando ya tenga su diagrama de flujo listo, cámbiala a estado \"Activa\" para que los clientes puedan iniciarla.");
+                resp.setAccion(accionNavegar("Ir a Políticas", "/admin/politicas"));
+                return resp;
+
+            case "admin_diagramas":
+                resp.setRespuesta("Para diseñar un flujo: 1) ve a Diagramas y abre o crea el de la política, 2) agrega nodos (actividad, decisión sí/no, fork para separar en paralelo, join para esperar a todas las ramas), 3) conéctalos y asigna cada actividad a un departamento. También puedes generarlo con IA describiendo el proceso en lenguaje natural con \"Diseño con IA\" por prompt.");
+                resp.setAccion(accionNavegar("Ir a Diagramas", "/admin/diagramas"));
+                return resp;
+
+            case "admin_colaborar":
+                resp.setRespuesta("Para co-editar un diagrama: 1) ábrelo y pulsa \"Compartir\", 2) escribe el correo del admin o funcionario que invitas, 3) elige el permiso: Editor (puede modificar) o Solo lectura (solo ve), 4) envía la invitación. La persona invitada lo encontrará en la sección \"Compartidos conmigo\" de Diagramas.");
+                resp.setAccion(accionNavegar("Ir a Diagramas", "/admin/diagramas"));
+                return resp;
+
+            case "admin_usuarios":
+                resp.setRespuesta("Para gestionar usuarios: 1) ve a \"Usuarios\", 2) pulsa \"Nuevo usuario\" y elige el rol (Administrador o Funcionario), 3) completa nombre, correo y departamento, 4) guarda. Desde la misma lista puedes editar o desactivar usuarios y administrar los departamentos a los que se asignan.");
+                resp.setAccion(accionNavegar("Ir a Usuarios", "/admin/usuarios"));
+                return resp;
+
+            case "admin_analitica":
+                resp.setRespuesta("En Métricas verás la analítica del sistema: 1) trámites activos por estado y tiempos por actividad, 2) los cuellos de botella detectados automáticamente cuando se supera el SLA, 3) anomalías que marca la IA, y 4) reportes que puedes pedir en lenguaje natural describiendo lo que quieres saber.");
+                resp.setAccion(accionNavegar("Ir a Métricas", "/admin/metricas"));
+                return resp;
+
+            case "fuera_de_alcance":
+            default:
+                resp.setRespuesta("Soy el asistente de trámites; con eso no te puedo ayudar 😅. Pero sí puedo recomendarte un trámite, ver su estado o decirte qué documentos necesitas. ¿Te ayudo con alguno?");
+                return resp;
+        }
+    }
 
     public AgenteResponse responder(AgenteRequest req, String rol) {
         String consulta = req.getConsulta() == null ? "" : req.getConsulta().toLowerCase(Locale.ROOT);
@@ -58,6 +189,41 @@ public class AgenteAsistenciaService {
                 resp.setAccion(a);
                 return resp;
             }
+        }
+
+        // ── Recomendación de trámite: el cliente describe lo que necesita ──
+        if (consulta.contains("recomien") || consulta.contains("sugier") ||
+            consulta.contains("que tramite") || consulta.contains("qué trámite") ||
+            consulta.contains("cual tramite") || consulta.contains("cuál trámite") ||
+            consulta.contains("necesito") || consulta.contains("quiero") ||
+            consulta.contains("requiero") || consulta.contains("deseo") ||
+            consulta.contains("solicitar") || consulta.contains("tramitar")) {
+            return recomendarTramite(consulta);
+        }
+
+        // ── Cómo iniciar un trámite ──
+        if ((consulta.contains("inici") || consulta.contains("empez") || consulta.contains("empiez") ||
+             consulta.contains("nuevo tramite") || consulta.contains("nuevo trámite")) &&
+            consulta.contains("tramit")) {
+            resp.setRespuesta("Para iniciar un trámite ve a \"Explorar\", elige el que necesitas y toca \"Iniciar\". O cuéntame qué necesitas y te recomiendo cuál.");
+            resp.setAccion(accionNavegar("Explorar trámites", "/cliente/tramites"));
+            return resp;
+        }
+
+        // ── Estado / lista de mis trámites ──
+        if (consulta.contains("mis tramite") || consulta.contains("mis trámite") ||
+            consulta.contains("estado de mi") || consulta.contains("seguim")) {
+            resp.setRespuesta("Puedes ver el estado de todos tus trámites en \"Mis trámites\". Toca uno para ver su línea de tiempo.");
+            resp.setAccion(accionNavegar("Ver mis trámites", "/cliente/tramites"));
+            return resp;
+        }
+
+        // ── Documentos / requisitos ──
+        if (consulta.contains("document") || consulta.contains("requisit") ||
+            consulta.contains("adjunt") || consulta.contains("subir") || consulta.contains("falta")) {
+            resp.setRespuesta("Si tu trámite pide documentos, los verás en \"Completar documentos\" o al abrir el trámite. Sube cada requisito (foto o archivo); cuando estén todos, el trámite avanza solo.");
+            resp.setAccion(accionNavegar("Completar documentos", "/cliente/tramites"));
+            return resp;
         }
 
         if (consulta.contains("politica") || consulta.contains("política") || consulta.contains("flujo") || consulta.contains("workflow")) {
@@ -143,9 +309,96 @@ public class AgenteAsistenciaService {
             return resp;
         }
 
-        // Fuera de alcance
-        resp.setRespuesta("Solo puedo asistirte con funcionalidades de esta plataforma (trámites, expedientes, flujos y métricas). Reformula tu pregunta o consulta el manual.");
+        // Fallback inteligente: en vez de "reformula tu pregunta", intentamos
+        // recomendar un trámite a partir de lo que describió el usuario.
+        return recomendarTramite(consulta);
+    }
+
+    /** Acción de navegación simple (web; el móvil mapea la ruta). */
+    private AgenteResponse.AccionDirecta accionNavegar(String label, String ruta) {
+        AgenteResponse.AccionDirecta a = new AgenteResponse.AccionDirecta();
+        a.setLabel(label);
+        a.setRuta(ruta);
+        a.setTipo("navegar");
+        return a;
+    }
+
+    /**
+     * Recomienda el trámite (política activa) que mejor coincide con la
+     * descripción del usuario, por solapamiento de palabras. Si hay match,
+     * ofrece iniciarlo directo; si no, lista los disponibles.
+     */
+    private AgenteResponse recomendarTramite(String consulta) {
+        String c = quitarAcentos(consulta);
+        List<PoliticaNegocio> activas = politicaRepo.findByEstado("activa");
+        if (activas.isEmpty()) activas = politicaRepo.findAll();
+
+        PoliticaNegocio mejor = null;
+        int mejorScore = 0;
+        for (PoliticaNegocio p : activas) {
+            int s = puntajeCoincidencia(c, p);
+            if (s > mejorScore) {
+                mejorScore = s;
+                mejor = p;
+            }
+        }
+
+        AgenteResponse resp = new AgenteResponse();
+        resp.setFuente("kb-local");
+
+        if (mejor != null && mejorScore > 0) {
+            String desc = (mejor.getDescripcion() != null && !mejor.getDescripcion().isBlank())
+                    ? " " + mejor.getDescripcion() : "";
+            resp.setRespuesta("Por lo que me cuentas, el trámite que necesitas es: \""
+                    + mejor.getNombre() + "\"." + desc + " ¿Quieres iniciarlo ahora?");
+            AgenteResponse.AccionDirecta a = new AgenteResponse.AccionDirecta();
+            a.setLabel("Iniciar: " + mejor.getNombre());
+            a.setRuta("/tramite-nuevo");
+            a.setTipo("iniciar");
+            a.setDato(mejor.getId());
+            resp.setAccion(a);
+            return resp;
+        }
+
+        StringBuilder sb = new StringBuilder("No identifiqué un trámite exacto para eso. ");
+        if (!activas.isEmpty()) {
+            sb.append("Estos son los disponibles: ");
+            int max = Math.min(5, activas.size());
+            for (int i = 0; i < max; i++) {
+                sb.append(activas.get(i).getNombre());
+                if (i < max - 1) sb.append(", ");
+            }
+            sb.append(". ");
+        }
+        sb.append("Puedes verlos en \"Explorar\" e iniciar el que necesites.");
+        resp.setRespuesta(sb.toString());
+        resp.setAccion(accionNavegar("Ver trámites disponibles", "/cliente/tramites"));
         return resp;
+    }
+
+    private static final java.util.Set<String> STOP = java.util.Set.of(
+            "para", "como", "esta", "este", "esto", "donde", "cuando", "cual",
+            "pero", "todo", "todos", "cliente", "clientes", "solicitud",
+            "tramite", "tramites", "nueva", "nuevo", "nuevos");
+
+    /** Cuenta cuántas palabras significativas de la política aparecen en la consulta. */
+    private int puntajeCoincidencia(String consultaNorm, PoliticaNegocio p) {
+        String texto = quitarAcentos(((p.getNombre() == null ? "" : p.getNombre()) + " "
+                + (p.getDescripcion() == null ? "" : p.getDescripcion()) + " "
+                + (p.getCategoria() == null ? "" : p.getCategoria())).toLowerCase(Locale.ROOT));
+        int score = 0;
+        for (String w : texto.split("[^a-z0-9]+")) {
+            if (w.length() <= 3 || STOP.contains(w)) continue;
+            if (consultaNorm.contains(w)) score++;
+        }
+        return score;
+    }
+
+    /** Minúsculas sin acentos para comparar de forma robusta. */
+    private String quitarAcentos(String s) {
+        if (s == null) return "";
+        String n = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD);
+        return n.replaceAll("\\p{M}", "");
     }
 
     private boolean esSaludo(String c) {
