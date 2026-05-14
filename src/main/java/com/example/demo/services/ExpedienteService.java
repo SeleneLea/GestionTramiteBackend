@@ -20,6 +20,7 @@ import com.example.demo.repositories.FormularioPlantillaRepository;
 import com.example.demo.repositories.SeccionExpedienteRepository;
 import com.example.demo.repositories.TramiteRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -88,7 +89,8 @@ public class ExpedienteService {
         return response;
     }
 
-    public SeccionExpediente guardarSeccion(String seccionId, GuardarSeccionRequest request, String funcionarioId) {
+    public SeccionExpediente guardarSeccion(String seccionId, GuardarSeccionRequest request,
+                                            String funcionarioId, boolean esAdmin) {
         SeccionExpediente seccion = seccionRepository.findById(seccionId)
                 .orElseThrow(() -> new IllegalArgumentException("Seccion no encontrada"));
 
@@ -98,6 +100,11 @@ public class ExpedienteService {
                 .orElseThrow(() -> new IllegalStateException("Expediente no encontrado"));
         Tramite tramite = tramiteRepository.findById(exp.getTramiteId())
                 .orElseThrow(() -> new IllegalStateException("Tramite no encontrado"));
+
+        // Autorización (SEC): solo el funcionario asignado al nodo ACTUAL puede
+        // editar esta sección. Admin tiene override. Validar ANTES de mutar.
+        validarAutorizacionNodoActual(seccion, tramite, funcionarioId, esAdmin);
+
         if (EstadoTramite.esFinalizado(tramite.getEstadoActual())) {
             throw new IllegalStateException("El tramite ya esta cerrado");
         }
@@ -204,7 +211,8 @@ public class ExpedienteService {
         return nuevos;
     }
 
-    public Tramite completarSeccionYAvanzar(String seccionId, CompletarSeccionRequest request, String funcionarioId) {
+    public Tramite completarSeccionYAvanzar(String seccionId, CompletarSeccionRequest request,
+                                            String funcionarioId, boolean esAdmin) {
         SeccionExpediente seccion = seccionRepository.findById(seccionId)
                 .orElseThrow(() -> new IllegalArgumentException("Seccion no encontrada"));
 
@@ -214,6 +222,10 @@ public class ExpedienteService {
                 .orElseThrow(() -> new IllegalStateException("Expediente no encontrado"));
         Tramite tramite = tramiteRepository.findById(exp.getTramiteId())
                 .orElseThrow(() -> new IllegalStateException("Tramite no encontrado"));
+
+        // Autorización (SEC): solo el funcionario asignado al nodo ACTUAL puede
+        // completar/derivar esta sección. Admin tiene override. Validar ANTES de mutar.
+        validarAutorizacionNodoActual(seccion, tramite, funcionarioId, esAdmin);
 
         if (EstadoTramite.esFinalizado(tramite.getEstadoActual())) {
             throw new IllegalStateException("El tramite ya esta cerrado");
@@ -235,5 +247,34 @@ public class ExpedienteService {
         engineRequest.setNotas(request.getNotasOperativas());
 
         return workflowEngineService.completarNodo(tramite.getId(), engineRequest);
+    }
+
+    /**
+     * Autorización a nivel de nodo (SEC): un funcionario solo puede editar/completar
+     * una sección si ésta pertenece al nodo ACTUAL del trámite y si él es el
+     * funcionario asignado a ese nodo (o si el nodo aún no tiene funcionario asignado).
+     * Los administradores (esAdmin) saltan toda la validación (override).
+     *
+     * @throws AccessDeniedException si el funcionario no está autorizado.
+     */
+    public static void validarAutorizacionNodoActual(SeccionExpediente seccion, Tramite tramite,
+                                                      String funcionarioId, boolean esAdmin) {
+        if (esAdmin) {
+            return; // ADMINISTRADOR: override total.
+        }
+
+        // a) La sección debe pertenecer al nodo ACTUAL del trámite.
+        if (seccion.getNodoId() == null
+                || !seccion.getNodoId().equals(tramite.getNodoActualId())) {
+            throw new AccessDeniedException(
+                    "Solo se pueden editar secciones del nodo actual del tramite");
+        }
+
+        // b) El nodo debe estar sin asignar O asignado al funcionario que pide.
+        String asignado = tramite.getFuncionarioActualId();
+        if (asignado != null && !asignado.equals(funcionarioId)) {
+            throw new AccessDeniedException(
+                    "Solo el funcionario asignado al nodo actual puede editar esta seccion");
+        }
     }
 }

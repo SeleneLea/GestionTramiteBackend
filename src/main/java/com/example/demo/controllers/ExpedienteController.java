@@ -38,7 +38,8 @@ public class ExpedienteController {
             Authentication authentication) {
 
         String usuarioId = authentication.getName();
-        return ResponseEntity.ok(expedienteService.guardarSeccion(seccionId, request, usuarioId));
+        boolean esAdmin = esAdministrador(authentication);
+        return ResponseEntity.ok(expedienteService.guardarSeccion(seccionId, request, usuarioId, esAdmin));
     }
 
     @PostMapping("/seccion/{seccionId}/completar")
@@ -50,6 +51,13 @@ public class ExpedienteController {
             Authentication authentication) {
 
         String usuarioId = authentication.getName();
-        return ResponseEntity.ok(expedienteService.completarSeccionYAvanzar(seccionId, request, usuarioId));
+        boolean esAdmin = esAdministrador(authentication);
+        return ResponseEntity.ok(expedienteService.completarSeccionYAvanzar(seccionId, request, usuarioId, esAdmin));
+    }
+
+    /** True si la autenticación tiene el rol ROLE_ADMINISTRADOR (override de autorización). */
+    private boolean esAdministrador(Authentication authentication) {
+        return authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMINISTRADOR".equals(a.getAuthority()));
     }
 }

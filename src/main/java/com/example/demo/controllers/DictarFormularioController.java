@@ -1,12 +1,17 @@
 package com.example.demo.controllers;
 
 import com.example.demo.dto.DictarFormularioResponse;
+import com.example.demo.models.ExpedienteDigital;
 import com.example.demo.models.SeccionExpediente;
+import com.example.demo.models.Tramite;
 import com.example.demo.models.TranscripcionVoz;
 import com.example.demo.repositories.CampoPlantillaRepository;
+import com.example.demo.repositories.ExpedienteDigitalRepository;
 import com.example.demo.repositories.FormularioPlantillaRepository;
 import com.example.demo.repositories.SeccionExpedienteRepository;
+import com.example.demo.repositories.TramiteRepository;
 import com.example.demo.repositories.TranscripcionVozRepository;
+import com.example.demo.services.ExpedienteService;
 import com.example.demo.services.IaProxyService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +43,8 @@ public class DictarFormularioController {
     @Autowired private FormularioPlantillaRepository formularioRepository;
     @Autowired private CampoPlantillaRepository campoRepository;
     @Autowired private TranscripcionVozRepository transcripcionRepository;
+    @Autowired private ExpedienteDigitalRepository expedienteRepository;
+    @Autowired private TramiteRepository tramiteRepository;
 
     private final ObjectMapper json = new ObjectMapper();
 
@@ -51,6 +58,16 @@ public class DictarFormularioController {
 
         SeccionExpediente seccion = seccionRepository.findById(seccionId)
                 .orElseThrow(() -> new IllegalArgumentException("Sección no encontrada: " + seccionId));
+
+        // Autorización (SEC): solo el funcionario asignado al nodo ACTUAL puede dictar
+        // sobre esta sección. Admin tiene override. Validar ANTES de delegar a la IA.
+        ExpedienteDigital exp = expedienteRepository.findById(seccion.getExpedienteId())
+                .orElseThrow(() -> new IllegalStateException("Expediente no encontrado"));
+        Tramite tramite = tramiteRepository.findById(exp.getTramiteId())
+                .orElseThrow(() -> new IllegalStateException("Tramite no encontrado"));
+        boolean esAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMINISTRADOR".equals(a.getAuthority()));
+        ExpedienteService.validarAutorizacionNodoActual(seccion, tramite, auth.getName(), esAdmin);
 
         // Construir el schema del formulario activo (campos de la plantilla asociada al nodo)
         String schemaJson = construirSchemaCampos(seccion);
