@@ -41,7 +41,12 @@ public class ReporteService {
     @Autowired
     private TramiteRepository tramiteRepository;
 
-    private static final String STORAGE_DIR = "./uploads/reportes/";
+    // Carpeta temporal del sistema (java.io.tmpdir -> /tmp en el contenedor):
+    // SIEMPRE escribible. La carpeta del classpath (/app) es de solo lectura en
+    // el contenedor, así que escribir ahí daba AccessDeniedException. El archivo
+    // sobrevive entre generar→descargar (mismo contenedor) sin necesitar volumen.
+    private static final String STORAGE_DIR =
+            System.getProperty("java.io.tmpdir") + "/tramites-reportes/";
 
     /** Mismas columnas que el CSV: cabecera única para CSV, Excel y PDF. */
     private static final String[] COLUMNAS = {"ID", "Estado", "ClienteID", "FechaInicio"};
