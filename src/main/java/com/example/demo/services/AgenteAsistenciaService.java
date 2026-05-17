@@ -38,12 +38,21 @@ public class AgenteAsistenciaService {
      * microservicio o el modelo no están disponibles, cae al detector por
      * palabras clave (responder), así nunca se rompe.
      */
+    /**
+     * Umbral mínimo de confianza del modelo. Si la predicción es menos segura que
+     * esto, NO confiamos en ella y caemos al detector por palabras clave (que es
+     * muy robusto para términos sueltos como "requisitos" o "qué trámites hay").
+     * Evita que una clasificación dudosa mande al usuario a la pantalla equivocada.
+     */
+    private static final double UMBRAL_CONFIANZA = 0.45;
+
     public AgenteResponse responderInteligente(AgenteRequest req, String rol) {
         try {
             Map<String, Object> r = iaProxy.clasificarIntencion(req.getConsulta());
             Object intObj = r.get("intencion");
             String intencion = intObj != null ? intObj.toString() : null;
-            if (intencion != null && !intencion.isBlank()) {
+            double confianza = (r.get("confianza") instanceof Number n) ? n.doubleValue() : 0.0;
+            if (intencion != null && !intencion.isBlank() && confianza >= UMBRAL_CONFIANZA) {
                 return responderPorIntencion(intencion, req, rol);
             }
         } catch (Exception e) {
@@ -64,6 +73,9 @@ public class AgenteAsistenciaService {
         switch (intencion) {
             case "recomendar_tramite":
                 return recomendarTramite(consulta);
+
+            case "listar_tramites":
+                return listarTramitesDisponibles();
 
             case "saludo":
                 resp.setRespuesta(saludoContextual(modulo, rol));
@@ -373,6 +385,37 @@ public class AgenteAsistenciaService {
         sb.append("Puedes verlos en \"Explorar\" e iniciar el que necesites.");
         resp.setRespuesta(sb.toString());
         resp.setAccion(accionNavegar("Ver trámites disponibles", "/cliente/tramites"));
+        return resp;
+    }
+
+    /**
+     * Lista los trámites (políticas activas) que el ciudadano puede iniciar.
+     * Responde a "¿qué trámites existen / hay / puedo hacer?" con el catálogo real.
+     */
+    private AgenteResponse listarTramitesDisponibles() {
+        List<PoliticaNegocio> activas = politicaRepo.findByEstado("activa");
+        if (activas.isEmpty()) activas = politicaRepo.findAll();
+
+        AgenteResponse resp = new AgenteResponse();
+        resp.setFuente("ml-tf");
+
+        if (activas.isEmpty()) {
+            resp.setRespuesta("Por ahora no hay trámites disponibles para iniciar. Vuelve a intentarlo más tarde.");
+            resp.setAccion(accionNavegar("Explorar trámites", "/cliente/tramites"));
+            return resp;
+        }
+
+        StringBuilder sb = new StringBuilder("Estos son los trámites que puedes iniciar (");
+        sb.append(activas.size()).append("): ");
+        int max = Math.min(8, activas.size());
+        for (int i = 0; i < max; i++) {
+            sb.append("• ").append(activas.get(i).getNombre());
+            if (i < max - 1) sb.append("  ");
+        }
+        if (activas.size() > max) sb.append("  …");
+        sb.append(". Abre \"Explorar\" para ver el detalle e iniciar el que necesites, o descríbeme tu caso y te recomiendo cuál.");
+        resp.setRespuesta(sb.toString());
+        resp.setAccion(accionNavegar("Explorar trámites", "/cliente/tramites"));
         return resp;
     }
 
