@@ -110,10 +110,16 @@ public class DictarFormularioController {
 
         List<Map<String, Object>> schema = new ArrayList<>();
         for (var c : campos) {
-            schema.add(Map.of(
-                    "nombre", c.getNombre() != null ? c.getNombre() : "",
-                    "tipo",   c.getTipo()   != null ? c.getTipo()   : "texto"
-            ));
+            // Enviamos también etiqueta y opciones: la etiqueta humana aporta más
+            // señal semántica para el matching, y las opciones permiten mapear
+            // un dictado contra un valor válido de un campo 'select'. Usamos un
+            // HashMap porque Map.of no admite valores nulos.
+            Map<String, Object> campo = new java.util.HashMap<>();
+            campo.put("nombre",   c.getNombre()   != null ? c.getNombre()   : "");
+            campo.put("tipo",     c.getTipo()     != null ? c.getTipo()     : "texto");
+            campo.put("etiqueta", c.getEtiqueta() != null ? c.getEtiqueta() : "");
+            campo.put("opciones", c.getOpciones() != null ? c.getOpciones() : List.of());
+            schema.add(campo);
         }
         try {
             return json.writeValueAsString(schema);

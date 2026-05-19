@@ -49,8 +49,10 @@ public class IaProxyService {
             ByteArrayResource resource = new ByteArrayResource(bytes) {
                 @Override
                 public String getFilename() {
+                    // El navegador (MediaRecorder) graba webm por defecto; el
+                    // microservicio deriva el MediaFormat de Transcribe de esta extensión.
                     return audio.getOriginalFilename() != null
-                            ? audio.getOriginalFilename() : "audio.wav";
+                            ? audio.getOriginalFilename() : "audio.webm";
                 }
             };
             body.add("audio", resource);
@@ -84,6 +86,18 @@ public class IaProxyService {
     public Map<String, Object> clasificarIntencion(String consulta) {
         return postJson("/nlp/clasificar-intencion",
                 Map.of("consulta", consulta != null ? consulta : ""));
+    }
+
+    // ── CU-31 · asistente generativo (Bedrock) — escalación híbrida ──────────
+    // Solo se invoca cuando el clasificador TensorFlow no resuelve (baja
+    // confianza / fuera de alcance). Si AWS está apagado o Bedrock falla, el
+    // microservicio responde 503 y esto lanza IA_NO_DISPONIBLE → el caller
+    // (AgenteAsistenciaService) degrada a su base de conocimiento local.
+
+    public Map<String, Object> asistenteLlm(String consulta, String contexto) {
+        return postJson("/nlp/asistente", Map.of(
+                "consulta", consulta != null ? consulta : "",
+                "contexto", contexto != null ? contexto : ""));
     }
 
     // ── CU-42 · ruta óptima ──────────────────────────────────────────────────

@@ -52,13 +52,77 @@ public class AgenteAsistenciaService {
             Object intObj = r.get("intencion");
             String intencion = intObj != null ? intObj.toString() : null;
             double confianza = (r.get("confianza") instanceof Number n) ? n.doubleValue() : 0.0;
-            if (intencion != null && !intencion.isBlank() && confianza >= UMBRAL_CONFIANZA) {
+            // TensorFlow resuelve gratis los intents conocidos y seguros. NO
+            // confiamos en él si la confianza es baja o si cae en "fuera_de_alcance":
+            // esos casos se escalan al LLM (Bedrock) para una respuesta de verdad.
+            if (intencion != null && !intencion.isBlank()
+                    && confianza >= UMBRAL_CONFIANZA
+                    && !"fuera_de_alcance".equals(intencion)) {
                 return responderPorIntencion(intencion, req, rol);
             }
         } catch (Exception e) {
-            // microservicio/TF no disponible -> KB por palabras (degradación)
+            // microservicio/TF no disponible -> probamos LLM y luego KB
         }
-        return responder(req, rol);
+        // Híbrido CU-31: lo que TF no resolvió va al LLM (Bedrock) CON contexto
+        // real; solo aquí se gasta (minoría de consultas). Si AWS está apagado o
+        // Bedrock falla, caemos a la base de conocimiento local por palabras.
+        AgenteResponse llm = responderConLlm(req, rol);
+        return llm != null ? llm : responder(req, rol);
+    }
+
+    /**
+     * Respuesta generativa con Bedrock (vía microservicio /nlp/asistente),
+     * aterrizada con datos REALES del sistema (políticas activas, rol, módulo y
+     * trámite del usuario). Devuelve null si el LLM no está disponible (AWS off
+     * o 503) para que el caller degrade a la KB local.
+     */
+    private AgenteResponse responderConLlm(AgenteRequest req, String rol) {
+        try {
+            Map<String, Object> r = iaProxy.asistenteLlm(req.getConsulta(), construirContexto(req, rol));
+            Object t = r.get("respuesta");
+            String texto = t != null ? t.toString() : null;
+            if (texto != null && !texto.isBlank()) {
+                AgenteResponse resp = new AgenteResponse();
+                resp.setRespuesta(texto);
+                resp.setFuente("llm-bedrock");
+                String modulo = req.getModuloActivo() == null ? "" : req.getModuloActivo().toLowerCase(Locale.ROOT);
+                resp.setAccion(sugerirAccion(modulo, rol));
+                return resp;
+            }
+        } catch (Exception e) {
+            // Bedrock/AWS no disponible -> el caller usa la KB local
+        }
+        return null;
+    }
+
+    /** Contexto breve y real que se pasa al LLM para que no invente. */
+    private String construirContexto(AgenteRequest req, String rol) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Rol del usuario: ").append(rol != null ? rol : "CLIENTE").append(".\n");
+        if (req.getModuloActivo() != null && !req.getModuloActivo().isBlank()) {
+            sb.append("Modulo activo en la app: ").append(req.getModuloActivo()).append(".\n");
+        }
+        List<PoliticaNegocio> activas = politicaRepo.findByEstado("activa");
+        if (activas.isEmpty()) activas = politicaRepo.findAll();
+        if (!activas.isEmpty()) {
+            sb.append("Tramites disponibles para iniciar: ");
+            int max = Math.min(8, activas.size());
+            for (int i = 0; i < max; i++) {
+                sb.append(activas.get(i).getNombre());
+                if (i < max - 1) sb.append(", ");
+            }
+            sb.append(".\n");
+        }
+        String tramiteId = req.getTramiteIdOpcional();
+        if (tramiteId != null && !tramiteId.isBlank()) {
+            Optional<Tramite> t = tramiteRepo.findById(tramiteId);
+            if (t.isPresent()) {
+                Tramite tr = t.get();
+                sb.append("Tramite del usuario: ").append(tr.getCodigo())
+                  .append(" (estado: ").append(tr.getEstadoActual()).append(").\n");
+            }
+        }
+        return sb.toString();
     }
 
     /** Respuesta a partir de la INTENCIÓN predicha por el modelo ML (TensorFlow). */
