@@ -8,13 +8,16 @@ import com.example.demo.models.DocumentoArchivo;
 import com.example.demo.models.EstadoHistorico;
 import com.example.demo.models.EstadoSeccion;
 import com.example.demo.models.EstadoTramite;
+import com.example.demo.models.NodoDiagrama;
 import com.example.demo.models.PoliticaNegocio;
 import com.example.demo.models.SeccionExpediente;
 import com.example.demo.models.Tramite;
 import com.example.demo.repositories.EstadoHistoricoRepository;
+import com.example.demo.repositories.NodoDiagramaRepository;
 import com.example.demo.repositories.PoliticaNegocioRepository;
 import com.example.demo.repositories.SeccionExpedienteRepository;
 import com.example.demo.repositories.TramiteRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,10 +28,14 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+@Slf4j
 public class TramiteDecisionService {
 
     @Autowired
     private TramiteRepository tramiteRepository;
+
+    @Autowired
+    private NodoDiagramaRepository nodoRepository;
 
     @Autowired
     private WorkflowEngineService workflowEngineService;
@@ -336,6 +343,12 @@ public class TramiteDecisionService {
             tramite.setFechaResolucion(LocalDateTime.now());
             tramite.setTipoResolucion("Resolución");
             tramiteRepository.save(tramite);
+
+            // Aviso PUSH adicional al cliente: el funcionario le devolvió el
+            // documento de resolución. Es independiente del "trámite aprobado"
+            // que emite el motor al cerrar. Best-effort: nunca debe abortar la
+            // aprobación si la notificación falla.
+            notificarResolucionAlCliente(tramite, resolucion);
         }
 
         trazabilidadService.registrar(tramite.getId(), usuarioResponsable,
@@ -350,6 +363,37 @@ public class TramiteDecisionService {
         engineReq.setDecision("si");
         engineReq.setFuncionarioId(usuarioResponsable);
         return workflowEngineService.completarNodo(tramite.getId(), engineReq);
+    }
+
+    /**
+     * Notifica al cliente que ya tiene disponible el documento de resolución que
+     * el funcionario subió para devolvérselo. Mensaje: en qué actividad se generó,
+     * qué documento y dónde verlo (repositorio del trámite). Best-effort.
+     */
+    private void notificarResolucionAlCliente(Tramite tramite, DocumentoArchivo resolucion) {
+        try {
+            if (tramite.getClienteId() == null) return;
+
+            String actividad = nodoRepository.findById(tramite.getNodoActualId())
+                    .map(NodoDiagrama::getNombre)
+                    .filter(n -> n != null && !n.isBlank())
+                    .orElse("la actividad final");
+
+            String mensaje = "En \"" + actividad + "\" te enviaron el documento \""
+                    + resolucion.getNombreLogico() + "\". Entra al repositorio del trámite "
+                    + tramite.getCodigo() + " para verlo.";
+
+            notificacionService.crearNotificacion(
+                    tramite.getClienteId(),
+                    tramite.getId(),
+                    "documento",
+                    "Documento de resolución disponible",
+                    mensaje,
+                    "push");
+        } catch (RuntimeException ex) {
+            log.warn("Aviso de resolución al cliente falló (tramite {}): {}",
+                    tramite.getId(), ex.getMessage());
+        }
     }
 
     private String inferirTipoDocumento(MultipartFile archivo) {
