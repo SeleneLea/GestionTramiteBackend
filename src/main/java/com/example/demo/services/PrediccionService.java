@@ -47,7 +47,7 @@ public class PrediccionService {
             entry.put("nombre", n.getNombre());
             entry.put("tipo", n.getTipo());
             entry.put("orden", n.getOrden());
-            entry.put("opcional", false);   // futuro: campo en NodoDiagrama
+            entry.put("opcional", n.isOpcional());   // CU-42: la IA puede omitir opcionales
             nodosPayload.add(entry);
         }
 
@@ -85,15 +85,20 @@ public class PrediccionService {
     public List<TramiteRiesgoResponse> calcularRiesgoBatch(List<Tramite> tramites) {
         if (tramites.isEmpty()) return List.of();
 
+        Map<String, Double> cargaPorDepto = cargaPorDepartamento();
         List<Map<String, Object>> features = new ArrayList<>();
         for (Tramite t : tramites) {
             Map<String, Object> f = new java.util.HashMap<>();
             f.put("tramite_id", t.getId());
-            // Stub de features: en una iter futura se calcula desde MetricaYCuelloService
-            f.put("carga_departamento", 0.5);
+            // Feature REAL (no hardcode): carga = trámites activos en el departamento
+            // actual del trámite, normalizada (≥ CARGA_BASELINE activos = saturado).
+            String depto = departamentoDe(t);
+            f.put("carga_departamento", depto != null ? cargaPorDepto.getOrDefault(depto, 0.0) : 0.0);
             f.put("complejidad", Math.min(1.0, t.getPrioridad() / 3.0));
-            f.put("hora_dia", LocalDateTime.now().getHour());
-            f.put("dia_semana", LocalDateTime.now().getDayOfWeek().getValue());
+            // Hora/día de INGRESO del trámite (señal determinista de cuándo entró).
+            LocalDateTime ref = t.getFechaInicio() != null ? t.getFechaInicio() : LocalDateTime.now();
+            f.put("hora_dia", ref.getHour());
+            f.put("dia_semana", ref.getDayOfWeek().getValue());
             features.add(f);
         }
 
@@ -128,6 +133,35 @@ public class PrediccionService {
         List<TramiteRiesgoResponse> todos = calcularRiesgoBatch(activos);
         if (nivelFiltro == null || nivelFiltro.isBlank()) return todos;
         return todos.stream().filter(r -> nivelFiltro.equalsIgnoreCase(r.getNivel())).toList();
+    }
+
+    // ── features reales ───────────────────────────────────────────────────────
+
+    /** #trámites activos en un departamento = más alto = más carga; ≥8 = saturado. */
+    private static final double CARGA_BASELINE = 8.0;
+
+    /** Carga normalizada [0..1] por departamento, según trámites activos en curso. */
+    private Map<String, Double> cargaPorDepartamento() {
+        Map<String, Integer> conteo = new java.util.HashMap<>();
+        for (Tramite t : tramiteRepository.findAll()) {
+            if (t.getFechaCierreReal() != null) continue;   // solo activos
+            String depto = departamentoDe(t);
+            if (depto != null) conteo.merge(depto, 1, Integer::sum);
+        }
+        Map<String, Double> carga = new java.util.HashMap<>();
+        conteo.forEach((d, c) -> carga.put(d, Math.min(1.0, c / CARGA_BASELINE)));
+        return carga;
+    }
+
+    /** Departamento actual del trámite, vía su nodo activo (o la 1ª rama paralela). */
+    private String departamentoDe(Tramite t) {
+        String nodoId = t.getNodoActualId();
+        if (nodoId == null && t.getNodosParalellosActivos() != null
+                && !t.getNodosParalellosActivos().isEmpty()) {
+            nodoId = t.getNodosParalellosActivos().get(0);
+        }
+        if (nodoId == null) return null;
+        return nodoRepository.findById(nodoId).map(NodoDiagrama::getDepartamentoId).orElse(null);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

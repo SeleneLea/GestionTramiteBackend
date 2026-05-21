@@ -28,5 +28,12 @@ public class NodoDiagrama {
     private String formularioPlantillaId;
 
     private int orden;
+
+    /**
+     * CU-42 — Si el paso es OPCIONAL, la IA de ruta óptima puede recomendar
+     * omitirlo cuando su necesidad estimada es baja. Por defecto {@code false}
+     * (obligatorio). El admin lo marca en el diagramador.
+     */
+    private boolean opcional;
 }
 

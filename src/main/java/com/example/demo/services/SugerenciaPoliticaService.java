@@ -48,7 +48,11 @@ public class SugerenciaPoliticaService {
             Map<String, Object> entry = new java.util.HashMap<>();
             entry.put("id", p.getId());
             entry.put("nombre", p.getNombre() != null ? p.getNombre() : "");
-            entry.put("palabras_clave", List.of());   // futuro: campo en PoliticaNegocio
+            // Texto real de la política → alimenta la heurística de respaldo del
+            // microservicio cuando el modelo TF aún no conoce esta política.
+            entry.put("descripcion", p.getDescripcion() != null ? p.getDescripcion() : "");
+            entry.put("categoria", p.getCategoria() != null ? p.getCategoria() : "");
+            entry.put("palabras_clave", List.of());
             politicasParaIa.add(entry);
         }
 

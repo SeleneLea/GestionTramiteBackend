@@ -75,6 +75,15 @@ public class IaProxyService {
         return postJson("/asignacion/politica", req);
     }
 
+    /**
+     * CU-40 · reentrena el clasificador de política (modelo TensorFlow) con las
+     * políticas activas. {@code politicas}: lista de {id, nombre, descripcion,
+     * categoria}. Lo dispara el backend al activar/archivar una política.
+     */
+    public Map<String, Object> reentrenarPolitica(List<Map<String, Object>> politicas) {
+        return postJson("/asignacion/reentrenar", Map.of("politicas", politicas));
+    }
+
     // ── CU-41 · reportes naturales ───────────────────────────────────────────
 
     public Map<String, Object> consultaNatural(String consulta) {

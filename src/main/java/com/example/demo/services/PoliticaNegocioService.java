@@ -18,8 +18,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -33,6 +35,7 @@ public class PoliticaNegocioService {
     @Autowired private DocumentoRepository documentoRepository;
     @Autowired private FlujoTransicionRepository flujoRepository;
     @Autowired private RequisitoDocumentoService requisitoDocumentoService;
+    @Autowired private IaProxyService iaProxy;
 
     public PoliticaNegocio crear(PoliticaNegocioRequest req, String creadorId) {
         if (politicaRepository.findByNombre(req.getNombre()).isPresent()) {
@@ -182,7 +185,42 @@ public class PoliticaNegocioService {
         }
 
         p.setEstado(nuevoEstado);
-        return politicaRepository.save(p);
+        PoliticaNegocio guardada = politicaRepository.save(p);
+
+        // CU-40 (P2 §3.2.2): cambió el conjunto de políticas activas → reentrena
+        // el clasificador del microservicio IA para que reconozca el nuevo set.
+        reentrenarClasificadorPoliticaAsync();
+        return guardada;
+    }
+
+    /**
+     * Reentrena el clasificador de política (modelo TensorFlow del microservicio
+     * IA) con las políticas ACTIVAS. Best-effort y en segundo plano: nunca debe
+     * bloquear ni romper el cambio de estado si la IA está caída. El modelo es
+     * dominio-agnóstico: aprende del texto de las políticas del negocio que sea.
+     */
+    private void reentrenarClasificadorPoliticaAsync() {
+        Thread t = new Thread(() -> {
+            try {
+                List<PoliticaNegocio> activas = politicaRepository.findByEstado("activa");
+                if (activas.size() < 2) return; // el clasificador necesita ≥2 clases
+                List<Map<String, Object>> payload = new ArrayList<>();
+                for (PoliticaNegocio p : activas) {
+                    Map<String, Object> m = new java.util.HashMap<>();
+                    m.put("id", p.getId());
+                    m.put("nombre", p.getNombre() != null ? p.getNombre() : "");
+                    m.put("descripcion", p.getDescripcion() != null ? p.getDescripcion() : "");
+                    m.put("categoria", p.getCategoria() != null ? p.getCategoria() : "");
+                    payload.add(m);
+                }
+                iaProxy.reentrenarPolitica(payload);
+            } catch (RuntimeException ex) {
+                // IA caída u otro fallo: el clasificador conserva su último modelo
+                // (o la heurística). No afecta la operación del admin.
+            }
+        }, "reentrenar-clasificador-politica");
+        t.setDaemon(true);
+        t.start();
     }
 
     /**
