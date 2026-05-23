@@ -84,6 +84,15 @@ public class IaProxyService {
         return postJson("/asignacion/reentrenar", Map.of("politicas", politicas));
     }
 
+    // ── CU-14 · diseño de flujo por prompt (IA) ──────────────────────────────
+    // Devuelve {nodos, transiciones}. Si el provider es 'local' o la IA falla, el
+    // micro responde 503 y esto lanza IA_NO_DISPONIBLE → el caller usa heurística.
+    public Map<String, Object> generarFlujo(String prompt, List<String> departamentos) {
+        return postJson("/nlp/diagrama", Map.of(
+                "prompt", prompt != null ? prompt : "",
+                "departamentos", departamentos != null ? departamentos : List.of()));
+    }
+
     // ── CU-41 · reportes naturales ───────────────────────────────────────────
 
     public Map<String, Object> consultaNatural(String consulta) {

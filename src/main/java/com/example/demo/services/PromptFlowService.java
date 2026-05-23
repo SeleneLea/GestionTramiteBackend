@@ -2,10 +2,12 @@ package com.example.demo.services;
 
 import com.example.demo.dto.PromptFlujoRequest;
 import com.example.demo.dto.PromptFlujoResponse;
+import com.example.demo.models.Actividad;
 import com.example.demo.models.Departamento;
 import com.example.demo.models.DiagramaWorkflow;
 import com.example.demo.models.FlujoTransicion;
 import com.example.demo.models.NodoDiagrama;
+import com.example.demo.repositories.ActividadRepository;
 import com.example.demo.repositories.DepartamentoRepository;
 import com.example.demo.repositories.DiagramaWorkflowRepository;
 import com.example.demo.repositories.FlujoTransicionRepository;
@@ -15,9 +17,21 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
+/**
+ * CU-14 — Diseño de flujo por prompt.
+ *
+ * Intenta primero la IA real (microservicio FastAPI → Gemini), que interpreta el
+ * lenguaje natural y devuelve la estructura del diagrama (nodos + transiciones,
+ * incluida la topología mixta y qué pasos van en paralelo). El backend la
+ * materializa, mapea departamentos y ENLAZA actividades reutilizables. Si la IA
+ * no está disponible (provider local / micro caído), cae a una heurística.
+ */
 @Service
 public class PromptFlowService {
 
@@ -25,18 +39,94 @@ public class PromptFlowService {
     @Autowired private NodoDiagramaRepository nodoRepository;
     @Autowired private FlujoTransicionRepository flujoRepository;
     @Autowired private DepartamentoRepository departamentoRepository;
+    @Autowired private ActividadRepository actividadRepository;
+    @Autowired private IaProxyService iaProxy;
 
+    @SuppressWarnings("unchecked")
     public PromptFlujoResponse generarDesdePrompt(PromptFlujoRequest req, String creadorId) {
+        List<Departamento> activos = departamentoRepository.findByActivoTrue();
+
+        // 1) IA real (si está disponible).
+        try {
+            List<String> nombres = activos.stream().map(Departamento::getNombre).toList();
+            Map<String, Object> flujo = iaProxy.generarFlujo(req.getPrompt(), nombres);
+            List<Map<String, Object>> nodosIa = (List<Map<String, Object>>) flujo.get("nodos");
+            List<Map<String, Object>> transIa = (List<Map<String, Object>>) flujo.getOrDefault("transiciones", List.of());
+            if (nodosIa != null && !nodosIa.isEmpty()) {
+                return materializarIa(req, creadorId, activos, nodosIa, transIa);
+            }
+        } catch (RuntimeException e) {
+            // IA no disponible (503 IA_NO_DISPONIBLE) o respuesta inválida → heurística.
+        }
+
+        // 2) Heurística determinista (fallback que nunca rompe).
+        return generarHeuristico(req, creadorId, activos);
+    }
+
+    // ── Materialización del flujo devuelto por la IA ───────────────────────────
+    private PromptFlujoResponse materializarIa(PromptFlujoRequest req, String creadorId,
+                                               List<Departamento> activos,
+                                               List<Map<String, Object>> nodosIa,
+                                               List<Map<String, Object>> transIa) {
+        DiagramaWorkflow d = nuevoDiagrama(req, creadorId);
+
+        List<NodoDiagrama> nodosCreados = new ArrayList<>();
+        Set<String> swimlanes = new LinkedHashSet<>();
+        int orden = 0;
+        for (Map<String, Object> n : nodosIa) {
+            String tipo = str(n.get("tipo"), "actividad");
+            String nombre = str(n.get("nombre"), tipo);
+            String deptNombre = str(n.get("departamento"), "");
+            boolean opcional = Boolean.TRUE.equals(n.get("opcional"));
+
+            String departamentoId = null;
+            String swimlane = null;
+            if ("actividad".equals(tipo) && !deptNombre.isBlank()) {
+                Departamento dep = matchDepartamento(deptNombre, activos);
+                if (dep != null) {
+                    departamentoId = dep.getId();
+                    swimlane = dep.getNombre();
+                    swimlanes.add(dep.getNombre());
+                } else {
+                    swimlane = deptNombre;          // nombre tal cual aunque no matchee
+                }
+            }
+            NodoDiagrama nodo = crearNodo(d.getId(), tipo, nombre, departamentoId, swimlane, orden++);
+            if (opcional) {
+                nodo.setOpcional(true);
+                nodo = nodoRepository.save(nodo);
+            }
+            nodosCreados.add(nodo);
+        }
+        if (!swimlanes.isEmpty()) {
+            d.setSwimlanes(new ArrayList<>(swimlanes));
+            d = diagramaRepository.save(d);
+        }
+
+        List<FlujoTransicion> transiciones = new ArrayList<>();
+        int total = nodosCreados.size();
+        for (Map<String, Object> t : transIa) {
+            int o = intDe(t.get("origen"), -1);
+            int s = intDe(t.get("destino"), -1);
+            if (o < 0 || o >= total || s < 0 || s >= total || o == s) continue;
+            transiciones.add(crearTransicion(d.getId(),
+                    nodosCreados.get(o).getId(), nodosCreados.get(s).getId(),
+                    str(t.get("tipo"), "secuencial"), str(t.get("etiqueta"), null)));
+        }
+
+        return new PromptFlujoResponse(d, nodosCreados, transiciones, req.getPrompt());
+    }
+
+    // ── Heurística determinista (fallback) ─────────────────────────────────────
+    private PromptFlujoResponse generarHeuristico(PromptFlujoRequest req, String creadorId,
+                                                  List<Departamento> todos) {
         String promptLower = req.getPrompt().toLowerCase(Locale.ROOT);
 
-        // 1. Detectar departamentos mencionados (por nombre completo o por código)
-        List<Departamento> todos = departamentoRepository.findByActivoTrue();
         List<Departamento> mencionados = new ArrayList<>();
         for (Departamento dep : todos) {
             int idxNombre = promptLower.indexOf(dep.getNombre().toLowerCase(Locale.ROOT));
             int idxCodigo = dep.getCodigo() != null
-                    ? promptLower.indexOf(dep.getCodigo().toLowerCase(Locale.ROOT))
-                    : -1;
+                    ? promptLower.indexOf(dep.getCodigo().toLowerCase(Locale.ROOT)) : -1;
             if ((idxNombre >= 0 || idxCodigo >= 0) && !mencionados.contains(dep)) {
                 mencionados.add(dep);
             }
@@ -46,160 +136,141 @@ public class PromptFlowService {
                     .map(dep -> dep.getNombre() + (dep.getCodigo() != null ? " (" + dep.getCodigo() + ")" : ""))
                     .toList();
             throw new IllegalArgumentException(
-                    "No se detectó ningún departamento en el prompt. " +
-                    "Menciona al menos uno por nombre o código. Departamentos disponibles: " +
-                    String.join(", ", nombresYCodigos));
+                    "No se detectó ningún departamento en el prompt. Menciona al menos uno por nombre o "
+                            + "código. Departamentos disponibles: " + String.join(", ", nombresYCodigos));
         }
-        // Ordenar por posición de primera aparición (nombre o código)
-        mencionados.sort((a, b) -> Integer.compare(
-                primeraAparicion(promptLower, a),
-                primeraAparicion(promptLower, b)));
+        mencionados.sort((a, b) -> Integer.compare(primeraAparicion(promptLower, a), primeraAparicion(promptLower, b)));
 
         boolean tieneDecision = promptLower.contains("aprueba") || promptLower.contains("rechaza")
                 || promptLower.contains("condición") || promptLower.contains("decisión");
         boolean tieneParalelo = promptLower.contains("paralelo")
                 || promptLower.contains("simultaneo") || promptLower.contains("simultáneo");
 
-        // 2. Crear el diagrama
-        DiagramaWorkflow d = new DiagramaWorkflow();
-        d.setNombre(req.getNombreDiagrama());
-        d.setPoliticaId(req.getPoliticaId());
-        d.setCreadorId(creadorId);
+        DiagramaWorkflow d = nuevoDiagrama(req, creadorId);
         d.setSwimlanes(mencionados.stream().map(Departamento::getNombre).toList());
-        d.setVersionActual(1);
-        d.setEstado("borrador");
-        d.setGeneradoPorIa(true);
-        d.setFechaCreacion(LocalDateTime.now());
-        d.setUltimaModificacion(LocalDateTime.now());
         d = diagramaRepository.save(d);
 
-        // 3. Generar nodos
         List<NodoDiagrama> nodosCreados = new ArrayList<>();
         int orden = 0;
-        
         NodoDiagrama inicio = crearNodo(d.getId(), "inicio", "Inicio", null, null, orden++);
         nodosCreados.add(inicio);
 
-        NodoDiagrama fork = null;
-        NodoDiagrama join = null;
+        NodoDiagrama fork = null, join = null;
         List<NodoDiagrama> actividadesParalelas = new ArrayList<>();
-
-        // Si hay paralelo, crear fork y las ramas
         if (tieneParalelo && mencionados.size() >= 2) {
             fork = crearNodo(d.getId(), "fork", "Fork paralelo", null, null, orden++);
             nodosCreados.add(fork);
-
-            // Crear actividades para cada departamento (en paralelo)
             for (Departamento dep : mencionados) {
-                NodoDiagrama actividad = crearNodo(d.getId(), "actividad",
+                NodoDiagrama act = crearNodo(d.getId(), "actividad",
                         "Actividad " + dep.getNombre(), dep.getId(), dep.getNombre(), orden++);
-                actividadesParalelas.add(actividad);
-                nodosCreados.add(actividad);
+                actividadesParalelas.add(act);
+                nodosCreados.add(act);
             }
-
             join = crearNodo(d.getId(), "join", "Join paralelo", null, null, orden++);
             nodosCreados.add(join);
         } else {
-            // Flujo lineal: solo actividades en secuencia
             for (Departamento dep : mencionados) {
-                NodoDiagrama actividad = crearNodo(d.getId(), "actividad",
-                        "Actividad " + dep.getNombre(), dep.getId(), dep.getNombre(), orden++);
-                nodosCreados.add(actividad);
+                nodosCreados.add(crearNodo(d.getId(), "actividad",
+                        "Actividad " + dep.getNombre(), dep.getId(), dep.getNombre(), orden++));
             }
         }
-
-        // Si hay decisión, agregarla antes del fin
         if (tieneDecision) {
             nodosCreados.add(crearNodo(d.getId(), "decision", "¿Aprobar?", null, null, orden++));
         }
         nodosCreados.add(crearNodo(d.getId(), "fin", "Fin", null, null, orden));
 
-        // 4. Generar transiciones
-        List<FlujoTransicion> transicionesCreadas = new ArrayList<>();
-
+        List<FlujoTransicion> transiciones = new ArrayList<>();
         if (tieneParalelo && fork != null && join != null) {
-            transicionesCreadas.add(crearTransicion(d.getId(), inicio.getId(), fork.getId(), "secuencial", null));
-
+            transiciones.add(crearTransicion(d.getId(), inicio.getId(), fork.getId(), "secuencial", null));
             for (NodoDiagrama act : actividadesParalelas) {
-                transicionesCreadas.add(crearTransicion(d.getId(), fork.getId(), act.getId(), "paralelo", null));
+                transiciones.add(crearTransicion(d.getId(), fork.getId(), act.getId(), "paralelo", null));
             }
-
             for (NodoDiagrama act : actividadesParalelas) {
-                transicionesCreadas.add(crearTransicion(d.getId(), act.getId(), join.getId(), "secuencial", null));
+                transiciones.add(crearTransicion(d.getId(), act.getId(), join.getId(), "secuencial", null));
             }
-
-            NodoDiagrama siguiente = null;
-            for (NodoDiagrama n : nodosCreados) {
-                if ("decision".equals(n.getTipo()) || "fin".equals(n.getTipo())) {
-                    siguiente = n;
-                    break;
-                }
-            }
+            NodoDiagrama siguiente = nodosCreados.stream()
+                    .filter(n -> "decision".equals(n.getTipo()) || "fin".equals(n.getTipo()))
+                    .findFirst().orElse(null);
             if (siguiente != null) {
-                transicionesCreadas.add(crearTransicion(d.getId(), join.getId(), siguiente.getId(), "secuencial", null));
+                transiciones.add(crearTransicion(d.getId(), join.getId(), siguiente.getId(), "secuencial", null));
             }
         } else {
             for (int i = 0; i < nodosCreados.size() - 1; i++) {
-                NodoDiagrama actual = nodosCreados.get(i);
-                NodoDiagrama siguiente = nodosCreados.get(i + 1);
+                NodoDiagrama actual = nodosCreados.get(i), siguiente = nodosCreados.get(i + 1);
                 String tipo = "decision".equals(actual.getTipo()) ? "condicional" : "secuencial";
                 String etiqueta = "decision".equals(actual.getTipo()) ? "si" : null;
-                transicionesCreadas.add(crearTransicion(d.getId(), actual.getId(), siguiente.getId(), tipo, etiqueta));
+                transiciones.add(crearTransicion(d.getId(), actual.getId(), siguiente.getId(), tipo, etiqueta));
             }
         }
-
         if (tieneDecision) {
             NodoDiagrama decision = nodosCreados.stream()
-                    .filter(n -> "decision".equals(n.getTipo()))
-                    .findFirst().orElseThrow();
-
-            NodoDiagrama actividadAnterior = null;
+                    .filter(n -> "decision".equals(n.getTipo())).findFirst().orElseThrow();
+            NodoDiagrama anterior;
             if (tieneParalelo && fork != null) {
-                // Re-trabajo del paralelo: la rama 'no' reactiva el fork (no el join,
-                // que se atraviesa solo y crearía un ciclo join<->decision infinito).
-                actividadAnterior = fork;
+                anterior = fork;
             } else {
-                int decisionIdx = nodosCreados.indexOf(decision);
-                if (decisionIdx > 0) {
-                    actividadAnterior = nodosCreados.get(decisionIdx - 1);
-                }
+                int idx = nodosCreados.indexOf(decision);
+                anterior = idx > 0 ? nodosCreados.get(idx - 1) : null;
             }
-
-            if (actividadAnterior != null) {
-                transicionesCreadas.add(crearTransicion(d.getId(), decision.getId(),
-                        actividadAnterior.getId(), "iterativo", "no"));
+            if (anterior != null) {
+                transiciones.add(crearTransicion(d.getId(), decision.getId(), anterior.getId(), "iterativo", "no"));
             }
-
-            // El camino lineal ya crea la rama 'si' (decision->siguiente) en el bucle
-            // secuencial; el camino paralelo arma las transiciones a mano y la omite.
-            // La agregamos hacia 'fin' para que el rombo tenga sus dos salidas
-            // (si->fin, no->retrabajo) y el motor pueda enrutar la respuesta 'si'.
             if (tieneParalelo) {
                 NodoDiagrama fin = nodosCreados.stream()
-                        .filter(n -> "fin".equals(n.getTipo()))
-                        .findFirst().orElse(null);
+                        .filter(n -> "fin".equals(n.getTipo())).findFirst().orElse(null);
                 if (fin != null) {
-                    transicionesCreadas.add(crearTransicion(
-                            d.getId(), decision.getId(), fin.getId(), "condicional", "si"));
+                    transiciones.add(crearTransicion(d.getId(), decision.getId(), fin.getId(), "condicional", "si"));
                 }
             }
         }
+        return new PromptFlujoResponse(d, nodosCreados, transiciones, req.getPrompt());
+    }
 
-        return new PromptFlujoResponse(d, nodosCreados, transicionesCreadas, req.getPrompt());
+    // ── helpers ────────────────────────────────────────────────────────────────
+    private DiagramaWorkflow nuevoDiagrama(PromptFlujoRequest req, String creadorId) {
+        DiagramaWorkflow d = new DiagramaWorkflow();
+        d.setNombre(req.getNombreDiagrama());
+        d.setPoliticaId(req.getPoliticaId());
+        d.setCreadorId(creadorId);
+        d.setVersionActual(1);
+        d.setEstado("borrador");
+        d.setGeneradoPorIa(true);
+        d.setFechaCreacion(LocalDateTime.now());
+        d.setUltimaModificacion(LocalDateTime.now());
+        return diagramaRepository.save(d);
     }
 
     private int primeraAparicion(String promptLower, Departamento dep) {
         int idxNombre = promptLower.indexOf(dep.getNombre().toLowerCase(Locale.ROOT));
         int idxCodigo = dep.getCodigo() != null
-                ? promptLower.indexOf(dep.getCodigo().toLowerCase(Locale.ROOT))
-                : -1;
+                ? promptLower.indexOf(dep.getCodigo().toLowerCase(Locale.ROOT)) : -1;
         if (idxNombre < 0) return idxCodigo;
         if (idxCodigo < 0) return idxNombre;
         return Math.min(idxNombre, idxCodigo);
     }
 
+    /** Empareja el nombre de departamento de la IA con un departamento real (difuso). */
+    private Departamento matchDepartamento(String nombre, List<Departamento> activos) {
+        String n = norm(nombre);
+        for (Departamento dep : activos) {
+            if (norm(dep.getNombre()).equals(n)) return dep;
+        }
+        for (Departamento dep : activos) {
+            if (norm(dep.getNombre()).contains(n) || n.contains(norm(dep.getNombre()))) return dep;
+        }
+        return null;
+    }
+
+    /** Actividad REUTILIZABLE del departamento (CU: reuso de componentes); null si no hay. */
+    private String actividadReutilizableDe(String departamentoId) {
+        if (departamentoId == null) return null;
+        List<Actividad> delDepto = actividadRepository.findByDepartamentoId(departamentoId);
+        return delDepto.stream().filter(Actividad::isReutilizable).map(Actividad::getId).findFirst()
+                .orElseGet(() -> delDepto.stream().map(Actividad::getId).findFirst().orElse(null));
+    }
+
     private NodoDiagrama crearNodo(String diagramaId, String tipo, String nombre,
-                                    String departamentoId, String swimlane, int orden) {
+                                   String departamentoId, String swimlane, int orden) {
         NodoDiagrama n = new NodoDiagrama();
         n.setDiagramaId(diagramaId);
         n.setTipo(tipo);
@@ -207,17 +278,36 @@ public class PromptFlowService {
         n.setDepartamentoId(departamentoId);
         n.setSwimlane(swimlane);
         n.setOrden(orden);
+        // Reuso de actividades: enlaza una actividad reutilizable del departamento.
+        if ("actividad".equals(tipo) && departamentoId != null) {
+            n.setActividadId(actividadReutilizableDe(departamentoId));
+        }
         return nodoRepository.save(n);
     }
 
-    private FlujoTransicion crearTransicion(String diagramaId, String nodoOrigenId, String nodoDestinoId,
+    private FlujoTransicion crearTransicion(String diagramaId, String origenId, String destinoId,
                                             String tipo, String etiqueta) {
         FlujoTransicion t = new FlujoTransicion();
         t.setDiagramaId(diagramaId);
-        t.setNodoOrigenId(nodoOrigenId);
-        t.setNodoDestinoId(nodoDestinoId);
+        t.setNodoOrigenId(origenId);
+        t.setNodoDestinoId(destinoId);
         t.setTipo(tipo);
         t.setEtiqueta(etiqueta);
         return flujoRepository.save(t);
+    }
+
+    private String str(Object o, String def) {
+        return o == null ? def : o.toString();
+    }
+
+    private int intDe(Object o, int def) {
+        if (o instanceof Number n) return n.intValue();
+        try { return o != null ? Integer.parseInt(o.toString()) : def; } catch (NumberFormatException e) { return def; }
+    }
+
+    private String norm(String s) {
+        if (s == null) return "";
+        return java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT).trim();
     }
 }
