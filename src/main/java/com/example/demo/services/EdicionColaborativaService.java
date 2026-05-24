@@ -130,6 +130,12 @@ public class EdicionColaborativaService {
         broadcaster.presencia(documentoId, "roster",
                 Map.of("participantes", sesion.getParticipantes()), usuarioId);
 
+        // SNAPSHOT al unirse: el recién llegado recibe el contenido VIVO de la
+        // sesión (lo que los demás ya escribieron) en vez de un editor vacío.
+        broadcaster.edicion(documentoId, "snapshot",
+                Map.of("contenido", sesion.getContenido() != null ? sesion.getContenido() : ""),
+                usuarioId);
+
         log.info("[CU-38] {} se unió a doc={} (total participantes: {})",
                 usuarioId, documentoId, sesion.getParticipantes().size());
     }
@@ -178,6 +184,9 @@ public class EdicionColaborativaService {
         // El canal STOMP no tiene GlobalExceptionHandler: si tras los reintentos persiste
         // el conflicto de versión, se degrada a no-op (el latido es best-effort y la op se
         // retransmite igualmente) en vez de propagar la excepción al socket.
+        // Contenido autoritativo: si la op es un replace de texto, el servidor
+        // conserva el estado para los snapshots de quienes se unan después.
+        String contenidoNuevo = contenidoDe(op);
         try {
             sesionRepo.findByDocumentoArchivoId(documentoId).ifPresent(base ->
                     guardarConReintento(documentoId, base, s -> {
@@ -187,12 +196,15 @@ public class EdicionColaborativaService {
                                 .ifPresent(p -> p.setUltimoLatido(LocalDateTime.now()));
                         s.setUltimoLatido(LocalDateTime.now());
                         s.setCambiosPendientes(s.getCambiosPendientes() + 1);
+                        if (contenidoNuevo != null) {
+                            s.setContenido(contenidoNuevo);
+                        }
                     }));
         } catch (OptimisticLockingFailureException conflicto) {
             log.debug("[CU-38] latido de op no persistido en doc={} por conflicto de versión", documentoId);
         }
 
-        // Retransmisión sin tocar el contenido — los clientes (Yjs) lo aplican.
+        // Retransmisión a los demás participantes.
         broadcaster.edicion(documentoId, "op", op, usuarioId);
     }
 
@@ -345,6 +357,16 @@ public class EdicionColaborativaService {
             }
         }
         return sesion;
+    }
+
+    /** Extrae el contenido de una op {tipo:'replace', contenido}; null si no aplica. */
+    private String contenidoDe(Object op) {
+        if (op instanceof Map<?, ?> m
+                && "replace".equals(String.valueOf(m.get("tipo")))
+                && m.get("contenido") instanceof String s) {
+            return s;
+        }
+        return null;
     }
 
     private boolean puedeEditar(DocumentoArchivo doc, String rol) {

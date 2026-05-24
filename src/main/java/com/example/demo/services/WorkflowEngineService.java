@@ -147,7 +147,17 @@ public class WorkflowEngineService {
         // NOTA: el control fino de ownership/departamento está deliberadamente
         // deshabilitado (cualquier funcionario puede completar el nodo activo),
         // coherente con el alcance no comercial del proyecto (RBAC fino diferido).
-        String nodoIdActivo = resolverNodoActivo(tramite, req.getFuncionarioId());
+        // Si el request trae la rama EXPLÍCITA (flujos paralelos: el expediente sabe
+        // qué sección se completó), esa manda — re-resolverla aquí podía derivar la
+        // rama equivocada cuando un funcionario atiende varias ramas del mismo depto.
+        String solicitado = req.getNodoId();
+        boolean solicitadoValido = solicitado != null && !solicitado.isBlank()
+                && (solicitado.equals(tramite.getNodoActualId())
+                    || (tramite.estaEnParalelo()
+                        && tramite.getNodosParalellosActivos().contains(solicitado)));
+        String nodoIdActivo = solicitadoValido
+                ? solicitado
+                : resolverNodoActivo(tramite, req.getFuncionarioId());
 
         // Marcar la sección del nodo como completada
         // Primero buscar por nodoId. Si no hay match (datos de seed con nodoIds

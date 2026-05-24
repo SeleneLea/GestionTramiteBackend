@@ -39,6 +39,13 @@ public class SesionEdicionDocumento {
     private int versionBase;
     private int cambiosPendientes;
 
+    /**
+     * Contenido VIVO de la sesión (texto colaborativo). El servidor lo guarda en
+     * cada op para que quien se une reciba un snapshot con el estado actual (y no
+     * un editor vacío). Se persiste como nueva versión del documento vía CU-35.
+     */
+    private String contenido;
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor

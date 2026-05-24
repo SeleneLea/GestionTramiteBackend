@@ -43,6 +43,31 @@ public class SugerenciaPoliticaService {
                     "No hay políticas activas — no se puede sugerir una para el trámite.");
         }
 
+        // Vía AUDIO de CU-40 ("texto o audio"): si el cliente solo dictó, la app
+        // manda descripcion="(audio)" + audioBase64. Transcribimos primero y el
+        // texto resultante alimenta al clasificador (y queda como descripción
+        // original del histórico). Si la transcripción no está disponible, se
+        // sigue con la descripción recibida (best-effort).
+        String descripcion = req.getDescripcion();
+        if (req.getAudioBase64() != null && !req.getAudioBase64().isBlank()
+                && (descripcion == null || descripcion.isBlank()
+                    || "(audio)".equals(descripcion.trim()))) {
+            try {
+                byte[] audio = java.util.Base64.getDecoder().decode(req.getAudioBase64());
+                Map<String, Object> tr = iaProxy.vozATexto(audio, "dictado.m4a");
+                Object texto = tr.get("texto_transcrito");
+                // es_stub=true → el micro NO transcribió de verdad (texto de
+                // respaldo): adoptarlo contaminaría la clasificación y el histórico.
+                boolean esStub = Boolean.TRUE.equals(tr.get("es_stub"));
+                if (!esStub && texto != null && !texto.toString().isBlank()) {
+                    descripcion = texto.toString();
+                }
+            } catch (RuntimeException ex) {
+                // IA/transcripción no disponible o base64 inválido → descripción original
+            }
+        }
+        req.setDescripcion(descripcion);
+
         List<Map<String, Object>> politicasParaIa = new ArrayList<>();
         for (PoliticaNegocio p : activas) {
             Map<String, Object> entry = new java.util.HashMap<>();

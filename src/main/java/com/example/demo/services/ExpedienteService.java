@@ -245,6 +245,9 @@ public class ExpedienteService {
         engineRequest.setFuncionarioId(funcionarioId);
         engineRequest.setDecision(request.getDecisionTomada());
         engineRequest.setNotas(request.getNotasOperativas());
+        // Rama explícita: en paralelo el motor NO debe re-adivinar qué rama se
+        // completó (derivaría la primera de la lista, no necesariamente esta).
+        engineRequest.setNodoId(seccion.getNodoId());
 
         return workflowEngineService.completarNodo(tramite.getId(), engineRequest);
     }
@@ -263,15 +266,30 @@ public class ExpedienteService {
             return; // ADMINISTRADOR: override total.
         }
 
-        // a) La sección debe pertenecer al nodo ACTUAL del trámite.
-        if (seccion.getNodoId() == null
-                || !seccion.getNodoId().equals(tramite.getNodoActualId())) {
+        // a) La sección debe pertenecer al nodo ACTUAL del trámite — o, en flujos
+        //    PARALELOS, a una de las ramas activas: en un fork el motor pone
+        //    nodoActualId=null y los nodos activos viven en nodosParalellosActivos
+        //    (misma semántica que WorkflowEngineService.resolverNodoActivo).
+        boolean nodoValido;
+        if (tramite.estaEnParalelo()) {
+            nodoValido = seccion.getNodoId() != null
+                    && tramite.getNodosParalellosActivos().contains(seccion.getNodoId());
+        } else {
+            nodoValido = seccion.getNodoId() != null
+                    && seccion.getNodoId().equals(tramite.getNodoActualId());
+        }
+        if (!nodoValido) {
             throw new AccessDeniedException(
                     "Solo se pueden editar secciones del nodo actual del tramite");
         }
 
         // b) El nodo debe estar sin asignar O asignado al funcionario que pide.
-        String asignado = tramite.getFuncionarioActualId();
+        //    En paralelo cada rama puede tener su propio funcionario (el
+        //    funcionarioActualId del trámite solo refleja una), así que se valida
+        //    contra el funcionario de LA SECCIÓN de esa rama.
+        String asignado = tramite.estaEnParalelo()
+                ? seccion.getFuncionarioId()
+                : tramite.getFuncionarioActualId();
         if (asignado != null && !asignado.equals(funcionarioId)) {
             throw new AccessDeniedException(
                     "Solo el funcionario asignado al nodo actual puede editar esta seccion");

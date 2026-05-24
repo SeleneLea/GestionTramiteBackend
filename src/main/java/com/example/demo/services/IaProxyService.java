@@ -64,6 +64,25 @@ public class IaProxyService {
         return postMultipart("/nlp/voz-a-formulario", body);
     }
 
+    /**
+     * Transcribe un audio recibido como BYTES (p. ej. el audioBase64 del móvil en
+     * CU-40) reutilizando {@code /nlp/voz-a-formulario} con schema vacío — solo
+     * interesa {@code texto_transcrito}. El filename determina el formato
+     * (el móvil graba .m4a/AAC).
+     */
+    public Map<String, Object> vozATexto(byte[] audioBytes, String filename) {
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        ByteArrayResource resource = new ByteArrayResource(audioBytes) {
+            @Override
+            public String getFilename() {
+                return filename != null && !filename.isBlank() ? filename : "audio.m4a";
+            }
+        };
+        body.add("audio", resource);
+        body.add("schema_campos", "[]");
+        return postMultipart("/nlp/voz-a-formulario", body);
+    }
+
     // ── CU-40 · sugerir política ─────────────────────────────────────────────
 
     public Map<String, Object> sugerirPolitica(String descripcion,
