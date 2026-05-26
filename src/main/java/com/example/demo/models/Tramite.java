@@ -60,6 +60,14 @@ public class Tramite {
 
     private LocalDateTime ultimaPrediccionRiesgo;
 
+    /**
+     * Nodos por los que YA se emitió la alerta determinista de SLA VENCIDO
+     * (P1 §7 — distinta del riesgo IA), separados por coma. Evita re-notificar
+     * el mismo nodo en cada corrida del scheduler (en paralelo puede haber
+     * varias ramas vencidas a la vez, por eso es lista y no un único id).
+     */
+    private String slaVencidoNotificadoNodoId;
+
     // === Documento de resolución (lo que el trámite "devuelve" al cliente) ===
     /** FK al DocumentoArchivo con la resolución entregable. Null si aún no hay. */
     private String documentoResolucionId;

@@ -83,6 +83,9 @@ public class TramiteCicloVidaService {
         tramite.setFuncionarioActualId(null);
         tramite.setNodoActualId(null);
         tramite.setNodosParalellosActivos(List.of());
+        // Cancelar ES un cierre: sin esta fecha el trámite contaría como "activo"
+        // para siempre en dashboard/riesgo (que filtran por fechaCierreReal==null).
+        tramite.setFechaCierreReal(LocalDateTime.now());
         tramite = tramiteRepository.save(tramite);
 
         trazabilidadService.registrar(tramiteId, clienteId, "cancelar", null,
