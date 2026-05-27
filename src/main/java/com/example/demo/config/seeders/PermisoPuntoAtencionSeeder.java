@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -31,8 +30,14 @@ public class PermisoPuntoAtencionSeeder {
     @Autowired private PoliticaNegocioRepository politicaRepo;
     @Autowired private ActividadRepository actividadRepo;
 
-    private static final List<String> TIPOS_VISIBLES_DEFAULT =
-            Arrays.asList("PDF", "IMAGEN", "WORD", "EXCEL");
+    /**
+     * Sin restricción de TIPOS por defecto (lista vacía = todos visibles según
+     * la regla del CU-36). Sembrar una lista poblada activaba el filtro por tipo
+     * en toda la demo y ocultaba al funcionario los documentos del cliente
+     * (cuyo tipoDocumento es el nombre libre del requisito). El admin la
+     * configura por punto desde la UI cuando de verdad quiera restringir.
+     */
+    private static final List<String> TIPOS_VISIBLES_DEFAULT = List.of();
 
     public void seed() {
         var politicasActivas = politicaRepo.findAll().stream()

@@ -73,13 +73,30 @@ public class DocumentoArchivoController {
                 data.urlPreview(), data.mimeType(), data.expiraEn()));
     }
 
+    // ── CU-37 · Descarga (auditada como DESCARGA, no como lectura) ───────────
+
+    @GetMapping("/documentos/{id}/descarga")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "URL firmada S3 para descargar el documento (audita DESCARGA)")
+    public ResponseEntity<PreviewDocumentoResponse> descarga(@PathVariable String id,
+                                                             Authentication auth,
+                                                             HttpServletRequest request) {
+        var data = docService.generarDescarga(id, auth.getName(), rolDe(auth),
+                ipDe(request), request.getHeader("User-Agent"));
+        return ResponseEntity.ok(new PreviewDocumentoResponse(
+                data.urlPreview(), data.mimeType(), data.expiraEn()));
+    }
+
     // ── Listados ─────────────────────────────────────────────────────────────
+    // CU-36: para funcionarios se aplican lectura/visibilidad por punto de atención.
 
     @GetMapping("/repositorios/{repositorioId}/documentos")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Listar documentos del repositorio")
-    public ResponseEntity<List<DocumentoArchivo>> listarPorRepositorio(@PathVariable String repositorioId) {
-        return ResponseEntity.ok(docService.listarPorRepositorio(repositorioId));
+    public ResponseEntity<List<DocumentoArchivo>> listarPorRepositorio(@PathVariable String repositorioId,
+                                                                       Authentication auth) {
+        return ResponseEntity.ok(docService.filtrarVisibles(
+                docService.listarPorRepositorio(repositorioId), rolDe(auth)));
     }
 
     @GetMapping("/tramites/{tramiteId}/documentos")
@@ -87,8 +104,10 @@ public class DocumentoArchivoController {
     @Operation(summary = "Listar documentos del trámite (opcional filtro por actividadId)")
     public ResponseEntity<List<DocumentoArchivo>> listarPorTramite(
             @PathVariable String tramiteId,
-            @RequestParam(required = false) String actividadId) {
-        return ResponseEntity.ok(docService.listarPorTramite(tramiteId, actividadId));
+            @RequestParam(required = false) String actividadId,
+            Authentication auth) {
+        return ResponseEntity.ok(docService.filtrarVisibles(
+                docService.listarPorTramite(tramiteId, actividadId), rolDe(auth)));
     }
 
     // NOTA: NO se expone GET /api/documentos/{id} porque colisiona con el

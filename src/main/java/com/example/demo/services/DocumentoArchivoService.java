@@ -344,25 +344,96 @@ public class DocumentoArchivoService {
         return docRepo.findByTramiteIdAndActivoTrue(tramiteId);
     }
 
+    /**
+     * CU-36 — Aplica al listado la dimensión de LECTURA/visibilidad del permiso
+     * por punto de atención, SOLO para funcionarios (los admins ven todo y el
+     * cliente no es un punto de atención): se ocultan los documentos cuya
+     * actividad no permite lectura (SOLO_EDICION) o cuyo tipo no está en
+     * {@code tiposDocumentoVisibles} cuando la lista está configurada.
+     */
+    public List<DocumentoArchivo> filtrarVisibles(List<DocumentoArchivo> docs, String rol) {
+        if (rol == null || !rol.contains("FUNCIONARIO")) return docs;
+        Map<String, com.example.demo.models.PermisoPuntoAtencion> cache = new java.util.HashMap<>();
+        return docs.stream().filter(d -> esLegibleParaFuncionario(d, cache)).toList();
+    }
+
+    /**
+     * Tipos del CATÁLOGO sobre los que opera el filtro de visibilidad (mismos
+     * que ofrece la UI del CU-36). El móvil llena {@code tipoDocumento} con el
+     * NOMBRE del requisito (texto libre, p.ej. "Carta de solicitud"): esos
+     * documentos NO se filtran por tipo — solo aplica el nivel de lectura —
+     * porque ocultarlos rompería el flujo recepcionar→validar→observar.
+     */
+    private static final java.util.Set<String> TIPOS_CATALOGO = java.util.Set.of(
+            "PDF", "IMAGEN", "WORD", "EXCEL", "AUDIO", "VIDEO", "OTRO");
+
+    private boolean esLegibleParaFuncionario(
+            DocumentoArchivo doc,
+            Map<String, com.example.demo.models.PermisoPuntoAtencion> cache) {
+        if (doc.getPoliticaId() == null || doc.getActividadId() == null) {
+            return true; // sin punto de atención configurable → visible
+        }
+        var permiso = cache.computeIfAbsent(
+                doc.getPoliticaId() + "|" + doc.getActividadId(),
+                k -> permisoService.buscarOPorDefecto(doc.getPoliticaId(), doc.getActividadId()));
+        if (!permisoService.permiteLectura(permiso.getNivelAcceso())) return false;
+        List<String> visibles = permiso.getTiposDocumentoVisibles();
+        if (visibles == null || visibles.isEmpty()) return true;
+        String tipo = doc.getTipoDocumento();
+        // El filtro por tipo solo restringe tipos del catálogo; el texto libre pasa.
+        return tipo == null || !TIPOS_CATALOGO.contains(tipo) || visibles.contains(tipo);
+    }
+
     public DocumentoArchivo buscarPorId(String id) {
         return docRepo.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Documento no encontrado: " + id));
     }
 
+    /** CU-34 — URL firmada para VER el documento; audita LECTURA. */
     public PreviewData generarPreview(String documentoId, String usuarioId, String rol,
                                       String ip, String userAgent) {
+        return generarUrlFirmada(documentoId, usuarioId, rol, ip, userAgent,
+                AuditoriaDocumentoService.LECTURA);
+    }
+
+    /** CU-37 — URL firmada para DESCARGAR el documento; audita DESCARGA. */
+    public PreviewData generarDescarga(String documentoId, String usuarioId, String rol,
+                                       String ip, String userAgent) {
+        return generarUrlFirmada(documentoId, usuarioId, rol, ip, userAgent,
+                AuditoriaDocumentoService.DESCARGA);
+    }
+
+    private PreviewData generarUrlFirmada(String documentoId, String usuarioId, String rol,
+                                          String ip, String userAgent, String accion) {
         DocumentoArchivo doc = buscarPorId(documentoId);
         VersionDocumento v = versionRepo.findById(doc.getVersionActualId())
                 .orElseThrow(() -> new IllegalStateException(
                         "Documento sin versión actual: " + documentoId));
 
+        // CU-36 — la dimensión de LECTURA del permiso por punto de atención
+        // también aplica al acceso individual (preview/descarga) del funcionario.
+        validarPermisoLectura(doc, rol);
+
         auditoria.registrar(doc.getId(), v.getId(), usuarioId, rol,
-                AuditoriaDocumentoService.LECTURA, ip, userAgent, null);
+                accion, ip, userAgent, null);
 
         return new PreviewData(
                 s3.presignedGet(v.getS3Key()).toString(),
                 v.getMimeType(),
                 s3.calcularExpiracion());
+    }
+
+    /**
+     * CU-36 — Si el punto de atención del documento no permite LECTURA para el
+     * funcionario (SOLO_EDICION, o tipo fuera de tiposDocumentoVisibles), lanza
+     * {@link AccessDeniedException}. Admins y clientes no se restringen aquí.
+     */
+    private void validarPermisoLectura(DocumentoArchivo doc, String rol) {
+        if (rol == null || !rol.contains("FUNCIONARIO")) return;
+        if (!esLegibleParaFuncionario(doc, new java.util.HashMap<>())) {
+            throw new AccessDeniedException(
+                    "DOC_PERMISO_DENEGADO: el punto de atención no permite leer este documento");
+        }
     }
 
     /** Datos para llenar {@code PreviewDocumentoResponse} sin acoplarse al DTO en el servicio. */

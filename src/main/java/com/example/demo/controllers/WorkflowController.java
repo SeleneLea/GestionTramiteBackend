@@ -475,7 +475,8 @@ public class WorkflowController {
         }
         String rol = auth.getAuthorities().stream()
                 .findFirst().map(a -> a.getAuthority()).orElse("");
-        DocumentoArchivoService.PreviewData preview = documentoArchivoService.generarPreview(
+        // CU-37: esto ES una descarga (lo que el cliente se lleva), no una lectura.
+        DocumentoArchivoService.PreviewData preview = documentoArchivoService.generarDescarga(
                 t.getDocumentoResolucionId(), auth.getName(), rol,
                 httpRequest.getRemoteAddr(), httpRequest.getHeader("User-Agent"));
 
