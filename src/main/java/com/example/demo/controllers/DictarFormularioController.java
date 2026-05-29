@@ -110,6 +110,9 @@ public class DictarFormularioController {
 
         List<Map<String, Object>> schema = new ArrayList<>();
         for (var c : campos) {
+            // No dictables: 'archivo' se sube, 'calculado' se deriva de otros campos.
+            String t = c.getTipo();
+            if ("archivo".equals(t) || "calculado".equals(t)) continue;
             // Enviamos también etiqueta y opciones: la etiqueta humana aporta más
             // señal semántica para el matching, y las opciones permiten mapear
             // un dictado contra un valor válido de un campo 'select'. Usamos un

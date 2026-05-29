@@ -21,8 +21,8 @@ public class CampoPlantillaRequest {
     private String etiqueta;
 
     @NotBlank
-    @Pattern(regexp = "texto|textarea|numero|fecha|select|checkbox|radio|archivo",
-             message = "tipo debe ser: texto, textarea, numero, fecha, select, checkbox, radio o archivo")
+    @Pattern(regexp = "texto|textarea|numero|fecha|select|checkbox|radio|archivo|calculado",
+             message = "tipo debe ser: texto, textarea, numero, fecha, select, checkbox, radio, archivo o calculado")
     private String tipo;
 
     private boolean obligatorio;
@@ -30,6 +30,10 @@ public class CampoPlantillaRequest {
     private List<String> opciones;
 
     private String validacionRegex;
+
+    /** Solo tipo "calculado": expresión aritmética sobre otros campos (por nombre). */
+    @Size(max = 300, message = "La formula no puede exceder 300 caracteres")
+    private String formula;
 
     @Min(value = 0, message = "El orden no puede ser negativo")
     private int orden;

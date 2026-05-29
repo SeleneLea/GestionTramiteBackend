@@ -38,6 +38,7 @@ public class DocumentoArchivoService {
     @Autowired private DocumentoArchivoRepository docRepo;
     @Autowired private VersionDocumentoRepository versionRepo;
     @Autowired private TramiteRepository tramiteRepository;
+    @Autowired private com.example.demo.repositories.NodoDiagramaRepository nodoRepository;
     @Autowired private RepositorioDocumentalService repositorioService;
     @Autowired private AuditoriaDocumentoService auditoria;
     @Autowired private S3StorageService s3;
@@ -68,6 +69,20 @@ public class DocumentoArchivoService {
         Tramite tramite = tramiteRepository.findById(tramiteId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Tramite no encontrado"));
+
+        // En flujos PARALELOS el trámite no tiene nodo único (/estado no expone
+        // actividad), así que el front puede mandar solo el nodoId de la SECCIÓN
+        // de su rama y aquí se resuelve la actividad de ese nodo.
+        if ((actividadId == null || actividadId.isBlank())
+                && nodoId != null && !nodoId.isBlank()) {
+            actividadId = nodoRepository.findById(nodoId)
+                    .map(com.example.demo.models.NodoDiagrama::getActividadId)
+                    .orElse(null);
+        }
+        if (actividadId == null || actividadId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "No se pudo determinar la actividad del documento (envia actividadId o nodoId)");
+        }
 
         RepositorioDocumental repo =
                 repositorioService.crearAlIniciarTramite(tramiteId, tramite.getPoliticaId());

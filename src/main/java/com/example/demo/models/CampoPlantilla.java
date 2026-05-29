@@ -26,6 +26,13 @@ public class CampoPlantilla {
     private List<String> opciones;
     private String validacionRegex;
 
+    /**
+     * Solo para tipo "calculado": expresión aritmética sobre otros campos de la
+     * misma sección, referenciados por su nombre técnico. Ej: "monto * 0.13".
+     * El front la evalúa en vivo y muestra el campo como solo-lectura.
+     */
+    private String formula;
+
     private int orden;
 }
 

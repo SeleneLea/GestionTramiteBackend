@@ -138,6 +138,18 @@ public class CampoPlantillaService {
             throw new IllegalArgumentException(
                     "El tipo '" + req.getTipo() + "' no admite lista de opciones");
         }
+
+        // Campo derivado: sin fórmula no hay nada que calcular.
+        boolean esCalculado = "calculado".equals(req.getTipo());
+        boolean tieneFormula = req.getFormula() != null && !req.getFormula().isBlank();
+        if (esCalculado && !tieneFormula) {
+            throw new IllegalArgumentException(
+                    "Los campos de tipo 'calculado' requieren una formula (ej: monto * 0.13)");
+        }
+        if (!esCalculado && tieneFormula) {
+            throw new IllegalArgumentException(
+                    "Solo los campos de tipo 'calculado' admiten formula");
+        }
     }
 
     private void copiar(CampoPlantillaRequest req, CampoPlantilla c) {
@@ -147,6 +159,7 @@ public class CampoPlantillaService {
         c.setObligatorio(req.isObligatorio());
         c.setOpciones(req.getOpciones());
         c.setValidacionRegex(req.getValidacionRegex());
+        c.setFormula(req.getFormula());
         c.setOrden(req.getOrden());
     }
 }

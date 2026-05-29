@@ -161,6 +161,7 @@ public class ExpedienteService {
                     row.put("obligatorio", cp.isObligatorio());
                     row.put("opciones", cp.getOpciones());
                     row.put("validacionRegex", cp.getValidacionRegex());
+                    row.put("formula", cp.getFormula());   // tipo "calculado"
                     row.put("orden", cp.getOrden());
                 });
             }

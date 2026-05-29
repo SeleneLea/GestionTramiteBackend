@@ -38,7 +38,9 @@ public class DocumentoArchivoController {
     @Operation(summary = "Subir documento nuevo (versión 1) al trámite")
     public ResponseEntity<DocumentoArchivoResponse> subir(
             @PathVariable String tramiteId,
-            @RequestParam String actividadId,
+            // Opcional cuando viene nodoId: en paralelo el front no conoce la
+            // actividad y el servicio la resuelve desde el nodo de la rama.
+            @RequestParam(required = false) String actividadId,
             @RequestParam(required = false) String documentoRequeridoId,
             @RequestParam(required = false) String corrigeDocumentoId,
             @RequestParam(required = false) String nodoId,
