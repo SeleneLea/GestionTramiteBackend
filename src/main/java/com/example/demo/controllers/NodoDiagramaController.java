@@ -2,6 +2,7 @@ package com.example.demo.controllers;
 
 import com.example.demo.dto.NodoDiagramaRequest;
 import com.example.demo.models.NodoDiagrama;
+import com.example.demo.services.ColaboracionService;
 import com.example.demo.services.DiagramaCollabBroadcaster;
 import com.example.demo.services.NodoDiagramaService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +18,12 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * P1 §7 — Los FUNCIONARIOS invitados como colaboradores 'editor' (invitación
+ * aceptada) también pueden mutar el lienzo: el rol abre la puerta HTTP y
+ * {@link ColaboracionService#validarEditorDelDiagrama} hace el control fino
+ * (creador o editor aceptado). Los administradores pasan siempre.
+ */
 @RestController
 @RequestMapping("/api")
 @Tag(name = "Nodos del Diagrama", description = "CU-13: agregar/editar/eliminar nodos del lienzo")
@@ -24,6 +31,7 @@ public class NodoDiagramaController {
 
     @Autowired private NodoDiagramaService nodoService;
     @Autowired private DiagramaCollabBroadcaster collab;
+    @Autowired private ColaboracionService colaboracionService;
 
     @GetMapping("/diagramas/{diagramaId}/nodos")
     @PreAuthorize("isAuthenticated()")
@@ -33,12 +41,13 @@ public class NodoDiagramaController {
     }
 
     @PostMapping("/diagramas/{diagramaId}/nodos")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR','FUNCIONARIO')")
     @Operation(summary = "Agregar nodo al diagrama",
                description = "Tipo válido: inicio, actividad, decision, fork, join, fin")
     public ResponseEntity<NodoDiagrama> crear(@PathVariable String diagramaId,
                                                @Valid @RequestBody NodoDiagramaRequest req,
                                                Authentication auth) {
+        validarEdicion(diagramaId, auth);
         NodoDiagrama creado = nodoService.agregarNodo(diagramaId, req);
         collab.broadcast(diagramaId, "nodo-creado", creado, auth != null ? auth.getName() : null);
         return ResponseEntity.status(HttpStatus.CREATED).body(creado);
@@ -53,11 +62,12 @@ public class NodoDiagramaController {
     }
 
     @PutMapping("/nodos/{id}")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR','FUNCIONARIO')")
     @Operation(summary = "Reemplazar un nodo (requiere el nodo completo)")
     public ResponseEntity<NodoDiagrama> actualizar(@PathVariable String id,
                                                     @Valid @RequestBody NodoDiagramaRequest req,
                                                     Authentication auth) {
+        validarEdicionDeNodo(id, auth);
         NodoDiagrama actualizado = nodoService.actualizar(id, req);
         collab.broadcast(actualizado.getDiagramaId(), "nodo-actualizado",
                 actualizado, auth != null ? auth.getName() : null);
@@ -65,7 +75,7 @@ public class NodoDiagramaController {
     }
 
     @PatchMapping("/nodos/{id}")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR','FUNCIONARIO')")
     @Operation(summary = "Actualización parcial de un nodo",
                description = "Solo actualiza los campos enviados (merge). Ideal para cambios "
                        + "incrementales del editor, p.ej. mover un nodo (solo 'posicion').")
@@ -73,6 +83,7 @@ public class NodoDiagramaController {
             @PathVariable String id,
             @Valid @RequestBody com.example.demo.dto.NodoDiagramaPatchRequest req,
             Authentication auth) {
+        validarEdicionDeNodo(id, auth);
         NodoDiagrama actualizado = nodoService.actualizarParcial(id, req);
         collab.broadcast(actualizado.getDiagramaId(), "nodo-actualizado",
                 actualizado, auth != null ? auth.getName() : null);
@@ -80,17 +91,38 @@ public class NodoDiagramaController {
     }
 
     @DeleteMapping("/nodos/{id}")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR','FUNCIONARIO')")
     public ResponseEntity<Void> eliminar(@PathVariable String id, Authentication auth) {
         // Resolvemos el diagramaId ANTES de borrar para poder informar a los demás colaboradores.
         String diagramaId = nodoService.buscarPorId(id)
                 .map(NodoDiagrama::getDiagramaId)
                 .orElse(null);
+        if (diagramaId != null) {
+            validarEdicion(diagramaId, auth);
+        }
         nodoService.eliminar(id);
         if (diagramaId != null) {
             collab.broadcast(diagramaId, "nodo-eliminado",
                     Map.of("id", id), auth != null ? auth.getName() : null);
         }
         return ResponseEntity.noContent().build();
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    private void validarEdicionDeNodo(String nodoId, Authentication auth) {
+        nodoService.buscarPorId(nodoId)
+                .map(NodoDiagrama::getDiagramaId)
+                .ifPresent(diagramaId -> validarEdicion(diagramaId, auth));
+    }
+
+    private void validarEdicion(String diagramaId, Authentication auth) {
+        if (esAdmin(auth)) return;
+        colaboracionService.validarEditorDelDiagrama(diagramaId, auth != null ? auth.getName() : null);
+    }
+
+    private boolean esAdmin(Authentication auth) {
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().contains("ADMINISTRADOR"));
     }
 }

@@ -102,18 +102,28 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/colaboracion/*/responder").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR")
                 // Diagramas de Workflow (G5)
                 .requestMatchers(HttpMethod.GET, "/api/diagramas/**").authenticated()
+                // OJO con el ORDEN: crear nodos/transiciones cuelga de /api/diagramas/*/...
+                // y debe resolverse ANTES que el catch-all POST /api/diagramas/** (admin),
+                // porque un colaborador 'editor' FUNCIONARIO también puede crearlos (P1 §7).
+                .requestMatchers(HttpMethod.POST, "/api/diagramas/*/nodos").hasAnyRole("ADMINISTRADOR", "FUNCIONARIO")
+                .requestMatchers(HttpMethod.POST, "/api/diagramas/*/transiciones").hasAnyRole("ADMINISTRADOR", "FUNCIONARIO")
                 .requestMatchers(HttpMethod.POST, "/api/diagramas/**").hasRole("ADMINISTRADOR")
                 .requestMatchers(HttpMethod.PUT, "/api/diagramas/**").hasRole("ADMINISTRADOR")
                 .requestMatchers(HttpMethod.PATCH, "/api/diagramas/**").hasRole("ADMINISTRADOR")
                 .requestMatchers(HttpMethod.DELETE, "/api/diagramas/**").hasRole("ADMINISTRADOR")
-                // Nodos y Transiciones (G5)
+                // Nodos y Transiciones (G5). FUNCIONARIO pasa la capa HTTP porque
+                // un colaborador 'editor' aceptado puede mutar el lienzo (P1 §7);
+                // el control fino (creador/editor) lo hacen los controllers vía
+                // ColaboracionService.validarEditorDelDiagrama.
                 .requestMatchers(HttpMethod.GET, "/api/nodos/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/nodos/**").hasRole("ADMINISTRADOR")
-                .requestMatchers(HttpMethod.PUT, "/api/nodos/**").hasRole("ADMINISTRADOR")
-                .requestMatchers(HttpMethod.DELETE, "/api/nodos/**").hasRole("ADMINISTRADOR")
+                .requestMatchers(HttpMethod.POST, "/api/nodos/**").hasAnyRole("ADMINISTRADOR", "FUNCIONARIO")
+                .requestMatchers(HttpMethod.PUT, "/api/nodos/**").hasAnyRole("ADMINISTRADOR", "FUNCIONARIO")
+                .requestMatchers(HttpMethod.PATCH, "/api/nodos/**").hasAnyRole("ADMINISTRADOR", "FUNCIONARIO")
+                .requestMatchers(HttpMethod.DELETE, "/api/nodos/**").hasAnyRole("ADMINISTRADOR", "FUNCIONARIO")
                 .requestMatchers(HttpMethod.GET, "/api/transiciones/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/transiciones/**").hasRole("ADMINISTRADOR")
-                .requestMatchers(HttpMethod.DELETE, "/api/transiciones/**").hasRole("ADMINISTRADOR")
+                .requestMatchers(HttpMethod.POST, "/api/transiciones/**").hasAnyRole("ADMINISTRADOR", "FUNCIONARIO")
+                .requestMatchers(HttpMethod.PUT, "/api/transiciones/**").hasAnyRole("ADMINISTRADOR", "FUNCIONARIO")
+                .requestMatchers(HttpMethod.DELETE, "/api/transiciones/**").hasAnyRole("ADMINISTRADOR", "FUNCIONARIO")
                 // Diseño por IA (G5)
                 .requestMatchers("/api/workflow-design/**").hasRole("ADMINISTRADOR")
                 // Permisos (G5)

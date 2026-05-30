@@ -92,6 +92,30 @@ public class ColaboracionService {
     }
 
     /**
+     * P1 §7 — Autoriza una MUTACIÓN del lienzo (nodos/transiciones) para un
+     * usuario NO administrador: pasa el CREADOR del diagrama o un colaborador
+     * con rol 'editor' y la invitación ACEPTADA. Misma regla que ya aplica el
+     * diseñador de formularios (FormularioPlantillaService.validarPermisoEdicion).
+     *
+     * @throws org.springframework.security.access.AccessDeniedException si no puede editar.
+     */
+    public void validarEditorDelDiagrama(String diagramaId, String usuarioId) {
+        DiagramaWorkflow diagrama = diagramaRepo.findById(diagramaId)
+                .orElseThrow(() -> new IllegalArgumentException("Diagrama no encontrado: " + diagramaId));
+        if (usuarioId != null && usuarioId.equals(diagrama.getCreadorId())) {
+            return;
+        }
+        boolean editorAceptado = colaboracionRepo.findByDiagramaId(diagramaId).stream()
+                .anyMatch(c -> usuarioId != null && usuarioId.equals(c.getInvitadoId())
+                        && "editor".equalsIgnoreCase(c.getRolColaboracion())
+                        && "aceptada".equalsIgnoreCase(c.getEstado()));
+        if (!editorAceptado) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Solo el creador o un colaborador editor (invitacion aceptada) puede modificar este diagrama");
+        }
+    }
+
+    /**
      * Diagramas compartidos CON el usuario (vista "Compartidos conmigo").
      * Devuelve las invitaciones pendientes y aceptadas (oculta las rechazadas),
      * resolviendo el nombre del diagrama/política y quién lo invitó.
