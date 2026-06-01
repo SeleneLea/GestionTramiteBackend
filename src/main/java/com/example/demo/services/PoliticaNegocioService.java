@@ -74,6 +74,21 @@ public class PoliticaNegocioService {
         return politicaRepository.findByEstado("activa");
     }
 
+    /**
+     * Políticas que NO tienen un diagrama (no archivado) asignado — las únicas a
+     * las que se les puede crear/generar uno (1:1 política↔diagrama). Se usa para
+     * filtrar el desplegable en "Nuevo diagrama" y "Diseño con IA".
+     */
+    public List<PoliticaNegocio> listarSinDiagrama() {
+        java.util.Set<String> conDiagrama = diagramaRepository.findAll().stream()
+                .filter(d -> d.getPoliticaId() != null && !"archivado".equals(d.getEstado()))
+                .map(com.example.demo.models.DiagramaWorkflow::getPoliticaId)
+                .collect(java.util.stream.Collectors.toSet());
+        return politicaRepository.findAll().stream()
+                .filter(p -> !conDiagrama.contains(p.getId()))
+                .toList();
+    }
+
     public Optional<PoliticaNegocio> buscarPorId(String id) {
         return politicaRepository.findById(id);
     }

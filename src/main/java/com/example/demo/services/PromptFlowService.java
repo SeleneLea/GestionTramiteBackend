@@ -40,10 +40,21 @@ public class PromptFlowService {
     @Autowired private FlujoTransicionRepository flujoRepository;
     @Autowired private DepartamentoRepository departamentoRepository;
     @Autowired private ActividadRepository actividadRepository;
+    @Autowired private com.example.demo.repositories.PoliticaNegocioRepository politicaRepository;
     @Autowired private IaProxyService iaProxy;
+    @Autowired private DiagramaWorkflowService diagramaWorkflowService;
 
     @SuppressWarnings("unchecked")
     public PromptFlujoResponse generarDesdePrompt(PromptFlujoRequest req, String creadorId) {
+        // 1:1 política↔diagrama: no generar un 2º diagrama para una política que ya
+        // tiene uno (mismo guard que la creación manual).
+        if (req.getPoliticaId() != null && !req.getPoliticaId().isBlank()) {
+            diagramaWorkflowService.validarPoliticaSinDiagrama(req.getPoliticaId());
+        }
+        // Red de seguridad extra: si el PROMPT menciona por NOMBRE una política que
+        // ya tiene diagrama, rechazar aunque no se haya elegido en el desplegable.
+        validarPromptNoMencionaPoliticaConDiagrama(req.getPrompt());
+
         List<Departamento> activos = departamentoRepository.findByActivoTrue();
 
         // 1) IA real (si está disponible).
@@ -237,7 +248,39 @@ public class PromptFlowService {
         d.setGeneradoPorIa(true);
         d.setFechaCreacion(LocalDateTime.now());
         d.setUltimaModificacion(LocalDateTime.now());
-        return diagramaRepository.save(d);
+        DiagramaWorkflow guardado = diagramaRepository.save(d);
+
+        // Backfill 1:1: dejar la política apuntando a este diagrama (igual que la
+        // creación manual) para que el vínculo quede consistente en ambos lados.
+        if (req.getPoliticaId() != null && !req.getPoliticaId().isBlank()) {
+            politicaRepository.findById(req.getPoliticaId()).ifPresent(p -> {
+                p.setDiagramaId(guardado.getId());
+                politicaRepository.save(p);
+            });
+        }
+        return guardado;
+    }
+
+    /**
+     * Si el prompt menciona el nombre de una política que YA tiene diagrama (no
+     * archivado), lanza error: evita generar un 2º diagrama para ella aunque el
+     * desplegable de política venga vacío. Solo nombres de ≥5 caracteres para no
+     * dar falsos positivos con nombres muy cortos.
+     */
+    private void validarPromptNoMencionaPoliticaConDiagrama(String prompt) {
+        if (prompt == null || prompt.isBlank()) return;
+        String promptNorm = norm(prompt);
+        for (com.example.demo.models.PoliticaNegocio p : politicaRepository.findAll()) {
+            String nombre = p.getNombre();
+            if (nombre == null) continue;
+            String nom = norm(nombre);
+            if (nom.length() >= 5 && promptNorm.contains(nom)
+                    && diagramaWorkflowService.politicaTieneDiagrama(p.getId())) {
+                throw new IllegalArgumentException(
+                        "El prompt menciona la politica \"" + nombre + "\", que ya tiene un diagrama. "
+                                + "Archivalo o describe el proceso de otra politica.");
+            }
+        }
     }
 
     private int primeraAparicion(String promptLower, Departamento dep) {

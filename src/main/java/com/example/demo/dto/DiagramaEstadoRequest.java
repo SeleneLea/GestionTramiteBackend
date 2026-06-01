@@ -8,7 +8,7 @@ import lombok.Data;
 public class DiagramaEstadoRequest {
 
     @NotBlank
-    @Pattern(regexp = "publicado|archivado",
-             message = "estado debe ser 'publicado' o 'archivado'")
+    @Pattern(regexp = "borrador|publicado|archivado",
+             message = "estado debe ser 'borrador', 'publicado' o 'archivado'")
     private String estado;
 }

@@ -180,6 +180,13 @@ public class SecurityConfig {
 
                 .anyRequest().authenticated()
             )
+            // Sesión NO autenticada (token ausente/expirado) → 401, no 403. Así el
+            // front distingue "vuelve a iniciar sesión" (401) de "sin permiso" (403)
+            // y redirige al login en vez de mostrar un confuso "No tienes permiso".
+            .exceptionHandling(ex -> ex.authenticationEntryPoint(
+                (request, response, authEx) ->
+                    response.sendError(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED,
+                        "No autenticado o sesión expirada")))
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

@@ -37,6 +37,14 @@ public class PoliticaNegocioController {
         return ResponseEntity.ok(politicaService.listarTodas());
     }
 
+    @GetMapping("/sin-diagrama")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @Operation(summary = "Políticas sin diagrama (1:1)",
+               description = "Las únicas a las que se les puede crear/generar un diagrama.")
+    public ResponseEntity<List<PoliticaNegocio>> listarSinDiagrama() {
+        return ResponseEntity.ok(politicaService.listarSinDiagrama());
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Buscar política por ID")
