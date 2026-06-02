@@ -202,10 +202,32 @@ public class PoliticaNegocioService {
         p.setEstado(nuevoEstado);
         PoliticaNegocio guardada = politicaRepository.save(p);
 
+        // El estado del DIAGRAMA lo MANDA la política (el diagrama no tiene estado
+        // propio): borrador→borrador, activa→publicado, archivada→archivado. Así
+        // nunca queda un diagrama publicado con su política en borrador.
+        sincronizarEstadoDiagrama(guardada, nuevoEstado);
+
         // CU-40 (P2 §3.2.2): cambió el conjunto de políticas activas → reentrena
         // el clasificador del microservicio IA para que reconozca el nuevo set.
         reentrenarClasificadorPoliticaAsync();
         return guardada;
+    }
+
+    /** Propaga el estado de la política a su diagrama vinculado. */
+    private void sincronizarEstadoDiagrama(PoliticaNegocio p, String estadoPolitica) {
+        if (p.getDiagramaId() == null) return;
+        String estadoDiagrama = switch (estadoPolitica) {
+            case "activa" -> "publicado";
+            case "archivada" -> "archivado";
+            default -> "borrador";
+        };
+        diagramaRepository.findById(p.getDiagramaId()).ifPresent(d -> {
+            if (!estadoDiagrama.equals(d.getEstado())) {
+                d.setEstado(estadoDiagrama);
+                d.setUltimaModificacion(LocalDateTime.now());
+                diagramaRepository.save(d);
+            }
+        });
     }
 
     /**
