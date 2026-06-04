@@ -153,6 +153,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/tramites/*/documentos").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR", "CLIENTE")
                 // Versionar — solo funcionario/admin
                 .requestMatchers(HttpMethod.POST, "/api/documentos/*/versiones").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR")
+                // OnlyOffice: el callback lo invoca el Document Server (no un usuario);
+                // lo protege el JWT de OnlyOffice, no la sesión.
+                .requestMatchers(HttpMethod.POST, "/api/documentos/*/onlyoffice/callback").permitAll()
                 // Auditoría — solo admin
                 .requestMatchers(HttpMethod.GET,  "/api/documentos/*/auditoria").hasRole("ADMINISTRADOR")
                 // Resto de lecturas de documentos — autenticado

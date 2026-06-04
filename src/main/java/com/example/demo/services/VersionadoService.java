@@ -117,6 +117,62 @@ public class VersionadoService {
         );
     }
 
+    /**
+     * Variante por BYTES (sin MultipartFile): la usa el callback de OnlyOffice al
+     * guardar un documento co-editado. No re-valida permiso (OnlyOffice ya controló
+     * el acceso al abrir el editor) ni exige IP/UserAgent. Si el contenido es
+     * idéntico a la versión actual, NO crea versión (devuelve null).
+     */
+    public DocumentoArchivoResponse crearNuevaVersionDesdeBytes(
+            String documentoId, byte[] bytes, String mimeType, String ext,
+            String comentarioCambio, String autorId) {
+
+        DocumentoArchivo doc = docRepo.findById(documentoId)
+                .orElseThrow(() -> new IllegalArgumentException("Documento no encontrado: " + documentoId));
+        VersionDocumento actual = versionRepo.findById(doc.getVersionActualId())
+                .orElseThrow(() -> new IllegalStateException("Documento sin versión actual: " + documentoId));
+
+        String hash = sha256(bytes);
+        if (hash.equals(actual.getHashSha256())) {
+            return null; // OnlyOffice a veces dispara guardado sin cambios reales
+        }
+
+        int nuevoNumero = actual.getNumeroVersion() + 1;
+        String extNorm = (ext == null || ext.isBlank()) ? "" : (ext.startsWith(".") ? ext : "." + ext);
+        var repo = repositorioService.buscarPorId(doc.getRepositorioId());
+        String s3Key = repo.getBucketKey() + UUID.randomUUID() + "-v" + nuevoNumero + extNorm;
+
+        s3.upload(s3Key, new ByteArrayInputStream(bytes), mimeType, bytes.length);
+
+        VersionDocumento v = new VersionDocumento();
+        v.setDocumentoArchivoId(doc.getId());
+        v.setNumeroVersion(nuevoNumero);
+        v.setS3Bucket(s3.bucket());
+        v.setS3Key(s3Key);
+        v.setTamanoBytes(bytes.length);
+        v.setMimeType(mimeType);
+        v.setHashSha256(hash);
+        v.setAutorId(autorId);
+        v.setComentarioCambio(comentarioCambio);
+        v.setFechaCreacion(LocalDateTime.now());
+        v = versionRepo.save(v);
+
+        doc.setVersionActualId(v.getId());
+        doc.setNumeroVersionActual(nuevoNumero);
+        docRepo.save(doc);
+
+        repositorioService.incrementarTotales(doc.getRepositorioId(), bytes.length);
+        auditoria.registrar(doc.getId(), v.getId(), autorId, "FUNCIONARIO",
+                AuditoriaDocumentoService.NUEVA_VERSION, null, "OnlyOffice",
+                Map.of("numeroVersion", nuevoNumero, "fuente", "onlyoffice-coedicion"));
+
+        return new DocumentoArchivoResponse(
+                doc.getId(), v.getId(), v.getNumeroVersion(),
+                doc.getNombreLogico(), doc.getTipoDocumento(),
+                v.getTamanoBytes(), v.getMimeType(),
+                v.getAutorId(), v.getFechaCreacion(), null, null);
+    }
+
     public List<VersionDocumentoResponse> listarVersiones(String documentoId) {
         DocumentoArchivo doc = docRepo.findById(documentoId)
                 .orElseThrow(() -> new IllegalArgumentException("Documento no encontrado: " + documentoId));
