@@ -29,10 +29,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * CU-39 — Dictado de voz que rellena los campos del formulario activo de
- * una sección del expediente.
- */
 @RestController
 @RequestMapping("/api/expedientes")
 @Tag(name = "IA · Dictar formulario", description = "CU-39 — voz → campos sugeridos del formulario")
@@ -59,8 +55,6 @@ public class DictarFormularioController {
         SeccionExpediente seccion = seccionRepository.findById(seccionId)
                 .orElseThrow(() -> new IllegalArgumentException("Sección no encontrada: " + seccionId));
 
-        // Autorización (SEC): solo el funcionario asignado al nodo ACTUAL puede dictar
-        // sobre esta sección. Admin tiene override. Validar ANTES de delegar a la IA.
         ExpedienteDigital exp = expedienteRepository.findById(seccion.getExpedienteId())
                 .orElseThrow(() -> new IllegalStateException("Expediente no encontrado"));
         Tramite tramite = tramiteRepository.findById(exp.getTramiteId())
@@ -69,16 +63,13 @@ public class DictarFormularioController {
                 .anyMatch(a -> "ROLE_ADMINISTRADOR".equals(a.getAuthority()));
         ExpedienteService.validarAutorizacionNodoActual(seccion, tramite, auth.getName(), esAdmin);
 
-        // Construir el schema del formulario activo (campos de la plantilla asociada al nodo)
         String schemaJson = construirSchemaCampos(seccion);
 
-        // Delegar al microservicio IA — si falla, propaga 503 IA_NO_DISPONIBLE
         Map<String, Object> resp = iaProxy.vozAFormulario(audio, schemaJson);
 
         String texto = stringDe(resp.get("texto_transcrito"));
         List<DictarFormularioResponse.CampoSugerido> sugeridos = parseCampos(resp.get("campos"));
 
-        // Persistir la transcripción para trazabilidad
         TranscripcionVoz tv = new TranscripcionVoz();
         tv.setSeccionId(seccionId);
         tv.setFuncionarioId(auth.getName());
@@ -92,11 +83,7 @@ public class DictarFormularioController {
                 tv.getId(), texto, sugeridos));
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
-
     private String construirSchemaCampos(SeccionExpediente seccion) {
-        // Cadena real:
-        //   SeccionExpediente.nodoId → FormularioPlantilla.nodoId → CampoPlantilla.formularioPlantillaId
         if (seccion.getNodoId() == null) return "[]";
 
         var formularios = formularioRepository.findByNodoId(seccion.getNodoId());
@@ -110,13 +97,8 @@ public class DictarFormularioController {
 
         List<Map<String, Object>> schema = new ArrayList<>();
         for (var c : campos) {
-            // No dictables: 'archivo' se sube, 'calculado' se deriva de otros campos.
             String t = c.getTipo();
             if ("archivo".equals(t) || "calculado".equals(t)) continue;
-            // Enviamos también etiqueta y opciones: la etiqueta humana aporta más
-            // señal semántica para el matching, y las opciones permiten mapear
-            // un dictado contra un valor válido de un campo 'select'. Usamos un
-            // HashMap porque Map.of no admite valores nulos.
             Map<String, Object> campo = new java.util.HashMap<>();
             campo.put("nombre",   c.getNombre()   != null ? c.getNombre()   : "");
             campo.put("tipo",     c.getTipo()     != null ? c.getTipo()     : "texto");

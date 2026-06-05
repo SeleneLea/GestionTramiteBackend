@@ -40,7 +40,6 @@ public class DiagramaWorkflowService {
 
         DiagramaWorkflow guardado = diagramaRepository.save(d);
 
-        // Backfill: asociar el diagrama a la política para que pueda activarse
         if (req.getPoliticaId() != null) {
             politicaRepository.findById(req.getPoliticaId()).ifPresent(p -> {
                 p.setDiagramaId(guardado.getId());
@@ -55,12 +54,6 @@ public class DiagramaWorkflowService {
         return diagramaRepository.findAll();
     }
 
-    /**
-     * 1:1 política↔diagrama: una política puede tener como máximo UN diagrama
-     * NO archivado. Si ya tiene uno (borrador/publicado), rechaza la creación de
-     * otro (vale tanto para la creación manual como para "Diseño con IA").
-     * Un diagrama archivado no cuenta (la política quedó libre para uno nuevo).
-     */
     public void validarPoliticaSinDiagrama(String politicaId) {
         if (politicaTieneDiagrama(politicaId)) {
             throw new IllegalArgumentException(
@@ -68,7 +61,6 @@ public class DiagramaWorkflowService {
         }
     }
 
-    /** True si la política ya tiene un diagrama NO archivado (borrador/publicado). */
     public boolean politicaTieneDiagrama(String politicaId) {
         return diagramaRepository.findAllByPoliticaId(politicaId).stream()
                 .anyMatch(d -> !"archivado".equals(d.getEstado()));
@@ -115,16 +107,10 @@ public class DiagramaWorkflowService {
         d.setUltimaModificacion(LocalDateTime.now());
         DiagramaWorkflow guardado = diagramaRepository.save(d);
 
-        // Mantener sincronizado el vínculo policy.diagramaId con el estado: un
-        // diagrama archivado libera a su política (deja de "tener diagrama"); uno
-        // borrador/publicado la deja vinculada. Así la vista de Políticas y la de
-        // Diagramas no se contradicen.
         sincronizarVinculoPolitica(guardado);
         return guardado;
     }
 
-    /** policy.diagramaId = este diagrama si NO está archivado; si lo está y la
-     *  política apuntaba a él, lo desvincula. */
     private void sincronizarVinculoPolitica(DiagramaWorkflow d) {
         if (d.getPoliticaId() == null) return;
         politicaRepository.findById(d.getPoliticaId()).ifPresent(p -> {
@@ -156,8 +142,6 @@ public class DiagramaWorkflowService {
             }
         }
 
-        // Reglas de topología del nodo de decisión (if): defensa al publicar, por si
-        // hay datos previos (seed/IA) que violen lo que ya bloquea agregarTransicion.
         java.util.Map<String, String> tipoPorNodo = new java.util.HashMap<>();
         for (NodoDiagrama n : nodos) tipoPorNodo.put(n.getId(), n.getTipo());
         for (var t : flujoRepository.findByDiagramaId(d.getId())) {
@@ -183,8 +167,6 @@ public class DiagramaWorkflowService {
                     "No se puede eliminar un diagrama publicado. Archívalo primero");
         }
 
-        // Desvincular la política si apuntaba a este diagrama (evita que quede
-        // "Vinculado" a un diagrama borrado).
         if (d.getPoliticaId() != null) {
             politicaRepository.findById(d.getPoliticaId()).ifPresent(p -> {
                 if (id.equals(p.getDiagramaId())) {

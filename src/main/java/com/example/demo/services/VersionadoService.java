@@ -22,13 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * CU-35 — Crea nuevas versiones de un documento existente. Mantiene el historial.
- *
- * Reglas:
- *  - Hash idéntico al actual → IllegalArgumentException (mapea a 409, RN-V05).
- *  - Documento bloqueado por otro → IllegalStateException con prefijo "DOC_BLOQUEADO" (mapea a 423).
- */
 @Service
 @Slf4j
 public class VersionadoService {
@@ -38,7 +31,6 @@ public class VersionadoService {
     @Autowired private RepositorioDocumentalService repositorioService;
     @Autowired private AuditoriaDocumentoService auditoria;
     @Autowired private S3StorageService s3;
-    /** CU-36 — valida nivel de acceso de la actividad antes de versionar. */
     @Autowired private PermisoDocumentalService permisoService;
 
     public DocumentoArchivoResponse crearNuevaVersion(String documentoId,
@@ -52,10 +44,8 @@ public class VersionadoService {
         DocumentoArchivo doc = docRepo.findById(documentoId)
                 .orElseThrow(() -> new IllegalArgumentException("Documento no encontrado: " + documentoId));
 
-        // CU-36 — validar permiso de escritura ANTES de leer el archivo o tocar S3
         validarPermisoEscritura(doc.getPoliticaId(), doc.getActividadId(), rol);
 
-        // Bloqueo exclusivo de otro usuario
         if (doc.getBloqueadoPor() != null && !doc.getBloqueadoPor().equals(usuarioId)) {
             throw new IllegalStateException(
                     "DOC_BLOQUEADO: el documento está bloqueado por " + doc.getBloqueadoPor());
@@ -76,11 +66,9 @@ public class VersionadoService {
         int nuevoNumero = actual.getNumeroVersion() + 1;
         String uuid = UUID.randomUUID().toString();
         String ext = extensionDe(archivo.getOriginalFilename());
-        // s3Key derivada del bucketKey del repo (ya es "tramites/{tramiteId}/")
         var repo = repositorioService.buscarPorId(doc.getRepositorioId());
         String s3Key = repo.getBucketKey() + uuid + "-v" + nuevoNumero + ext;
 
-        // Sube primero a S3; si falla, no se modifica nada en Mongo
         s3.upload(s3Key, new ByteArrayInputStream(bytes),
                 archivo.getContentType(), bytes.length);
 
@@ -117,12 +105,6 @@ public class VersionadoService {
         );
     }
 
-    /**
-     * Variante por BYTES (sin MultipartFile): la usa el callback de OnlyOffice al
-     * guardar un documento co-editado. No re-valida permiso (OnlyOffice ya controló
-     * el acceso al abrir el editor) ni exige IP/UserAgent. Si el contenido es
-     * idéntico a la versión actual, NO crea versión (devuelve null).
-     */
     public DocumentoArchivoResponse crearNuevaVersionDesdeBytes(
             String documentoId, byte[] bytes, String mimeType, String ext,
             String comentarioCambio, String autorId) {
@@ -134,7 +116,7 @@ public class VersionadoService {
 
         String hash = sha256(bytes);
         if (hash.equals(actual.getHashSha256())) {
-            return null; // OnlyOffice a veces dispara guardado sin cambios reales
+            return null;
         }
 
         int nuevoNumero = actual.getNumeroVersion() + 1;
@@ -194,7 +176,6 @@ public class VersionadoService {
                 .toList();
     }
 
-    /** Misma regla que {@link DocumentoArchivoService}: SOLO_LECTURA bloquea escritura. */
     private void validarPermisoEscritura(String politicaId, String actividadId, String rol) {
         if (rol != null && rol.contains("ADMINISTRADOR")) return;
         if (politicaId == null || actividadId == null) {

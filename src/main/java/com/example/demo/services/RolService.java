@@ -82,7 +82,7 @@ public class RolService {
     private void validarPermisos(List<String> permisos) {
         if (permisos == null) return;
         for (String codigo : permisos) {
-            if ("*".equals(codigo)) continue;  // wildcard del SuperUser
+            if ("*".equals(codigo)) continue;
             permisoRepository.findByCodigo(codigo)
                     .orElseThrow(() -> new IllegalArgumentException(
                             "Permiso no existe: " + codigo));

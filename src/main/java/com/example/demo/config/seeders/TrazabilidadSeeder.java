@@ -24,7 +24,6 @@ import java.util.Map;
 @Slf4j
 public class TrazabilidadSeeder {
 
-    // Mismo hash génesis que TrazabilidadService: 64 ceros, primer hashAnterior de cada cadena.
     private static final String HASH_GENESIS =
             "0000000000000000000000000000000000000000000000000000000000000000";
 
@@ -55,7 +54,6 @@ public class TrazabilidadSeeder {
         for (Tramite t : tramites) {
             LocalDateTime base = t.getFechaInicio() != null ? t.getFechaInicio() : LocalDateTime.now().minusDays(5);
 
-            // hashAnterior del primer eslabón = génesis; los siguientes encadenan con el hashActual previo.
             switch (t.getCodigo()) {
                 case "TRM-2024-001" -> {
                     String h1 = reg(t.getId(), funcAtcId, "iniciar",         nAtcVer,  null,     HASH_GENESIS, base);
@@ -84,8 +82,7 @@ public class TrazabilidadSeeder {
                     reg(t.getId(), adminId,    "cancelar", null, Map.of("motivo", "Solicitud del cliente"), h1, base.plusDays(2));
                 }
                 default -> {
-                    // Cadena minima para cualquier tramite no cubierto explicitamente:
-                    // garantiza un eslabon genesis valido para que verificarCadena() no recorra cadena vacia.
+
                     String h1 = reg(t.getId(), funcAtcId, "iniciar", nAtcVer, null, HASH_GENESIS, base);
                     if (t.getNodoActualId() != null) {
                         reg(t.getId(), funcTecId, "completar_nodo", t.getNodoActualId(),
@@ -97,12 +94,6 @@ public class TrazabilidadSeeder {
         log.info("[Seeder] Trazabilidad OK");
     }
 
-    /**
-     * Persiste un eslabón de la cadena calculando un hash VÁLIDO idéntico al de
-     * TrazabilidadService.registrar(): trunca el timestamp a milisegundos antes de
-     * hashear y guardar, y deriva hashActual = generarHash(construirInputHash(reg)).
-     * Devuelve el hashActual para encadenar el siguiente eslabón.
-     */
     private String reg(String tramiteId, String actorId, String accion, String nodoId,
                        Map<String, Object> datosDespues, String hashAnterior,
                        LocalDateTime ts) {
@@ -113,7 +104,7 @@ public class TrazabilidadSeeder {
         tr.setNodoId(nodoId);
         tr.setDatosAntes(null);
         tr.setDatosDespues(datosDespues);
-        // Truncar a milisegundos: igual que el servicio, para que el hash coincida tras releer de Mongo.
+
         tr.setTimestamp(ts != null ? ts.truncatedTo(ChronoUnit.MILLIS) : null);
         tr.setHashAnterior(hashAnterior);
 
@@ -123,8 +114,6 @@ public class TrazabilidadSeeder {
         return tr.getHashActual();
     }
 
-    // Réplica EXACTA de TrazabilidadService.construirInputHash: separador '|',
-    // TreeMap canónico de datosDespues, timestamp via String.valueOf, mismos campos y orden.
     private String construirInputHash(Trazabilidad t) {
         Map<String, Object> datos = t.getDatosDespues();
         String datosCanon = new java.util.TreeMap<>(
@@ -139,7 +128,6 @@ public class TrazabilidadSeeder {
                 t.getHashAnterior() == null ? "" : t.getHashAnterior());
     }
 
-    // Réplica EXACTA de TrazabilidadService.generarHash: SHA-256 en Base64.
     private String generarHash(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

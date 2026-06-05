@@ -29,11 +29,5 @@ public class SeccionExpediente {
     private LocalDateTime fechaAsignacion;
     private LocalDateTime fechaCompletado;
 
-    /**
-     * Caso OBSERVADO: ids de {@link DocumentoArchivo} que el funcionario marcó como
-     * "mal" al devolver el trámite. El cliente ve solo estos para corregir; al re-subir
-     * uno (con {@code corrigeDocumentoId}) se quita de esta lista.
-     */
     private List<String> documentosObservados;
 }
-

@@ -21,13 +21,6 @@ import java.net.URL;
 import java.time.Duration;
 import java.time.Instant;
 
-/**
- * Capa de acceso a Amazon S3 para la gestión documental (Parte 2).
- *
- * Si {@code aws.enabled=false}, los beans de S3 no existen y este servicio
- * lanza {@link IllegalStateException} en cada llamada — útil para arrancar
- * el backend en dev antes de tener credenciales.
- */
 @Service
 @Slf4j
 public class S3StorageService {
@@ -60,14 +53,6 @@ public class S3StorageService {
         }
     }
 
-    /**
-     * Sube un binario a S3.
-     *
-     * @param key         path completo dentro del bucket (p.ej. {@code politicas/p1/tramites/t1/uuid-v1.pdf})
-     * @param input       stream del archivo
-     * @param contentType MIME type (puede ser null → S3 usa application/octet-stream)
-     * @param size        tamaño en bytes (obligatorio; S3 lo necesita para subidas en stream)
-     */
     public void upload(String key, InputStream input, String contentType, long size) {
         S3Client cli = clienteRequerido();
         PutObjectRequest req = PutObjectRequest.builder()
@@ -79,7 +64,6 @@ public class S3StorageService {
         cli.putObject(req, RequestBody.fromInputStream(input, size));
     }
 
-    /** URL firmada GET con TTL configurable. */
     public URL presignedGet(String key) {
         return presignedGet(key, Duration.ofSeconds(presignedTtlSeconds));
     }
@@ -95,7 +79,6 @@ public class S3StorageService {
         return pre.presignGetObject(req).url();
     }
 
-    /** Instante en que expira una URL firmada generada ahora con el TTL por defecto. */
     public Instant calcularExpiracion() {
         return Instant.now().plusSeconds(presignedTtlSeconds);
     }

@@ -16,9 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Orquesta CU-42 (ruta óptima) y CU-43 (riesgo demora) delegando al microservicio IA.
- */
 @Service
 public class PrediccionService {
 
@@ -26,8 +23,6 @@ public class PrediccionService {
     @Autowired private TramiteRepository tramiteRepository;
     @Autowired private PoliticaNegocioRepository politicaRepository;
     @Autowired private NodoDiagramaRepository nodoRepository;
-
-    // ── CU-42 ────────────────────────────────────────────────────────────────
 
     public RutaOptimaResponse calcularRutaOptima(String tramiteId) {
         Tramite t = tramiteRepository.findById(tramiteId)
@@ -47,7 +42,7 @@ public class PrediccionService {
             entry.put("nombre", n.getNombre());
             entry.put("tipo", n.getTipo());
             entry.put("orden", n.getOrden());
-            entry.put("opcional", n.isOpcional());   // CU-42: la IA puede omitir opcionales
+            entry.put("opcional", n.isOpcional());
             nodosPayload.add(entry);
         }
 
@@ -64,7 +59,6 @@ public class PrediccionService {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> omitidos = (List<Map<String, Object>>) resp.getOrDefault("pasos_omitidos", List.of());
 
-        // Persistir en el trámite
         t.setRutaSugerida(ruta);
         tramiteRepository.save(t);
 
@@ -80,8 +74,6 @@ public class PrediccionService {
         );
     }
 
-    // ── CU-43 ────────────────────────────────────────────────────────────────
-
     public List<TramiteRiesgoResponse> calcularRiesgoBatch(List<Tramite> tramites) {
         if (tramites.isEmpty()) return List.of();
 
@@ -90,12 +82,9 @@ public class PrediccionService {
         for (Tramite t : tramites) {
             Map<String, Object> f = new java.util.HashMap<>();
             f.put("tramite_id", t.getId());
-            // Feature REAL (no hardcode): carga = trámites activos en el departamento
-            // actual del trámite, normalizada (≥ CARGA_BASELINE activos = saturado).
             String depto = departamentoDe(t);
             f.put("carga_departamento", depto != null ? cargaPorDepto.getOrDefault(depto, 0.0) : 0.0);
             f.put("complejidad", Math.min(1.0, t.getPrioridad() / 3.0));
-            // Hora/día de INGRESO del trámite (señal determinista de cuándo entró).
             LocalDateTime ref = t.getFechaInicio() != null ? t.getFechaInicio() : LocalDateTime.now();
             f.put("hora_dia", ref.getHour());
             f.put("dia_semana", ref.getDayOfWeek().getValue());
@@ -104,7 +93,6 @@ public class PrediccionService {
 
         List<Map<String, Object>> resp = iaProxy.riesgoDemora(features);
 
-        // Persistir en cada trámite
         List<TramiteRiesgoResponse> salida = new ArrayList<>();
         for (Map<String, Object> r : resp) {
             String tramiteId = stringDe(r.get("tramite_id"));
@@ -126,7 +114,6 @@ public class PrediccionService {
     }
 
     public List<TramiteRiesgoResponse> calcularRiesgoTramitesActivos(String nivelFiltro) {
-        // Activos = aquellos que no estén Aprobado / Rechazado / Cancelado / Completado
         List<Tramite> activos = tramiteRepository.findAll().stream()
                 .filter(t -> t.getFechaCierreReal() == null)
                 .toList();
@@ -135,16 +122,12 @@ public class PrediccionService {
         return todos.stream().filter(r -> nivelFiltro.equalsIgnoreCase(r.getNivel())).toList();
     }
 
-    // ── features reales ───────────────────────────────────────────────────────
-
-    /** #trámites activos en un departamento = más alto = más carga; ≥8 = saturado. */
     private static final double CARGA_BASELINE = 8.0;
 
-    /** Carga normalizada [0..1] por departamento, según trámites activos en curso. */
     private Map<String, Double> cargaPorDepartamento() {
         Map<String, Integer> conteo = new java.util.HashMap<>();
         for (Tramite t : tramiteRepository.findAll()) {
-            if (t.getFechaCierreReal() != null) continue;   // solo activos
+            if (t.getFechaCierreReal() != null) continue;
             String depto = departamentoDe(t);
             if (depto != null) conteo.merge(depto, 1, Integer::sum);
         }
@@ -153,7 +136,6 @@ public class PrediccionService {
         return carga;
     }
 
-    /** Departamento actual del trámite, vía su nodo activo (o la 1ª rama paralela). */
     private String departamentoDe(Tramite t) {
         String nodoId = t.getNodoActualId();
         if (nodoId == null && t.getNodosParalellosActivos() != null
@@ -163,8 +145,6 @@ public class PrediccionService {
         if (nodoId == null) return null;
         return nodoRepository.findById(nodoId).map(NodoDiagrama::getDepartamentoId).orElse(null);
     }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
 
     private String stringDe(Object o) { return o == null ? null : o.toString(); }
 

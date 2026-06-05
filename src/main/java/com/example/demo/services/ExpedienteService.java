@@ -69,9 +69,6 @@ public class ExpedienteService {
             Map<String, Object> secMap = new HashMap<>();
             secMap.put("infoSeccion", seccion);
 
-            // Si la sección está en_curso y aún no se han instanciado los CampoSeccion,
-            // copiamos la plantilla del nodo a campos con valor vacío para que el
-            // funcionario sepa visualmente qué tiene que llenar (CU-13c).
             List<CampoSeccion> campos = campoRepository.findBySeccionId(seccion.getId());
             if (campos.isEmpty() && EstadoSeccion.esActivaParaTrabajo(seccion.getEstado())) {
                 campos = instanciarCamposDesdeNodo(seccion);
@@ -94,15 +91,11 @@ public class ExpedienteService {
         SeccionExpediente seccion = seccionRepository.findById(seccionId)
                 .orElseThrow(() -> new IllegalArgumentException("Seccion no encontrada"));
 
-        // Guard de trámite finalizado (WF-07): no se puede editar un expediente
-        // cuyo trámite ya está cerrado. Cargamos el trámite vía expediente.
         ExpedienteDigital exp = expedienteRepository.findById(seccion.getExpedienteId())
                 .orElseThrow(() -> new IllegalStateException("Expediente no encontrado"));
         Tramite tramite = tramiteRepository.findById(exp.getTramiteId())
                 .orElseThrow(() -> new IllegalStateException("Tramite no encontrado"));
 
-        // Autorización (SEC): solo el funcionario asignado al nodo ACTUAL puede
-        // editar esta sección. Admin tiene override. Validar ANTES de mutar.
         validarAutorizacionNodoActual(seccion, tramite, funcionarioId, esAdmin);
 
         if (EstadoTramite.esFinalizado(tramite.getEstadoActual())) {
@@ -126,7 +119,6 @@ public class ExpedienteService {
         }
 
         seccion.setFuncionarioId(funcionarioId);
-        // Editar implica tomar la sección: Pendiente de recepción / Observado → En ejecución.
         EstadoSeccion estadoSec = EstadoSeccion.from(seccion.getEstado());
         if (estadoSec == EstadoSeccion.PENDIENTE_RECEPCION || estadoSec == EstadoSeccion.OBSERVADO) {
             seccion.setEstado(EstadoSeccion.EN_EJECUCION.getValor());
@@ -134,12 +126,6 @@ public class ExpedienteService {
         return seccionRepository.save(seccion);
     }
 
-    /**
-     * Fusiona CampoSeccion (id, valor, fechaGuardado) con la metadata del
-     * CampoPlantilla (etiqueta, opciones, obligatorio, validacionRegex)
-     * para que el front pueda renderizar inputs con texto amigable y
-     * validar sin hacer una segunda llamada.
-     */
     private List<Map<String, Object>> enriquecerConPlantilla(List<CampoSeccion> campos) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (CampoSeccion c : campos) {
@@ -153,21 +139,18 @@ public class ExpedienteService {
             row.put("fueDictado", c.isFueDictado());
             row.put("fechaGuardado", c.getFechaGuardado());
 
-            // Metadata de la plantilla (puede no existir si el campo se creó
-            // huérfano, por eso es defensivo).
             if (c.getCampoPlantillaId() != null) {
                 campoPlantillaRepository.findById(c.getCampoPlantillaId()).ifPresent(cp -> {
                     row.put("etiqueta", cp.getEtiqueta());
                     row.put("obligatorio", cp.isObligatorio());
                     row.put("opciones", cp.getOpciones());
                     row.put("validacionRegex", cp.getValidacionRegex());
-                    row.put("formula", cp.getFormula());   // tipo "calculado"
+                    row.put("formula", cp.getFormula());
                     row.put("orden", cp.getOrden());
                 });
             }
             out.add(row);
         }
-        // Ordenar por "orden" de la plantilla (los que no tienen orden, al final).
         out.sort((a, b) -> {
             Integer oa = (Integer) a.get("orden");
             Integer ob = (Integer) b.get("orden");
@@ -179,12 +162,6 @@ public class ExpedienteService {
         return out;
     }
 
-    /**
-     * Cuando una sección recién entra en_curso, normalmente no tiene
-     * CampoSeccion creados. Para que el funcionario vea visualmente qué
-     * tiene que rellenar, copiamos los campos de la plantilla del nodo
-     * con valor vacío. Idempotente: si ya hay campos, no hace nada.
-     */
     private List<CampoSeccion> instanciarCamposDesdeNodo(SeccionExpediente seccion) {
         String nodoId = seccion.getNodoId();
         if (nodoId == null) return new ArrayList<>();
@@ -217,15 +194,11 @@ public class ExpedienteService {
         SeccionExpediente seccion = seccionRepository.findById(seccionId)
                 .orElseThrow(() -> new IllegalArgumentException("Seccion no encontrada"));
 
-        // Validar ANTES de mutar la sección (WF-07): cargar expediente + trámite
-        // y rechazar si el trámite ya está cerrado o la sección no es trabajable.
         ExpedienteDigital exp = expedienteRepository.findById(seccion.getExpedienteId())
                 .orElseThrow(() -> new IllegalStateException("Expediente no encontrado"));
         Tramite tramite = tramiteRepository.findById(exp.getTramiteId())
                 .orElseThrow(() -> new IllegalStateException("Tramite no encontrado"));
 
-        // Autorización (SEC): solo el funcionario asignado al nodo ACTUAL puede
-        // completar/derivar esta sección. Admin tiene override. Validar ANTES de mutar.
         validarAutorizacionNodoActual(seccion, tramite, funcionarioId, esAdmin);
 
         if (EstadoTramite.esFinalizado(tramite.getEstadoActual())) {
@@ -236,7 +209,6 @@ public class ExpedienteService {
             throw new IllegalStateException("Solo se pueden completar secciones recibidas o en ejecución");
         }
 
-        // Validaciones superadas: recién ahora mutamos la sección a DERIVADA.
         seccion.setEstado(EstadoSeccion.DERIVADA.getValor());
         seccion.setFuncionarioId(funcionarioId);
         seccion.setFechaCompletado(LocalDateTime.now());
@@ -246,31 +218,17 @@ public class ExpedienteService {
         engineRequest.setFuncionarioId(funcionarioId);
         engineRequest.setDecision(request.getDecisionTomada());
         engineRequest.setNotas(request.getNotasOperativas());
-        // Rama explícita: en paralelo el motor NO debe re-adivinar qué rama se
-        // completó (derivaría la primera de la lista, no necesariamente esta).
         engineRequest.setNodoId(seccion.getNodoId());
 
         return workflowEngineService.completarNodo(tramite.getId(), engineRequest);
     }
 
-    /**
-     * Autorización a nivel de nodo (SEC): un funcionario solo puede editar/completar
-     * una sección si ésta pertenece al nodo ACTUAL del trámite y si él es el
-     * funcionario asignado a ese nodo (o si el nodo aún no tiene funcionario asignado).
-     * Los administradores (esAdmin) saltan toda la validación (override).
-     *
-     * @throws AccessDeniedException si el funcionario no está autorizado.
-     */
     public static void validarAutorizacionNodoActual(SeccionExpediente seccion, Tramite tramite,
                                                       String funcionarioId, boolean esAdmin) {
         if (esAdmin) {
-            return; // ADMINISTRADOR: override total.
+            return;
         }
 
-        // a) La sección debe pertenecer al nodo ACTUAL del trámite — o, en flujos
-        //    PARALELOS, a una de las ramas activas: en un fork el motor pone
-        //    nodoActualId=null y los nodos activos viven en nodosParalellosActivos
-        //    (misma semántica que WorkflowEngineService.resolverNodoActivo).
         boolean nodoValido;
         if (tramite.estaEnParalelo()) {
             nodoValido = seccion.getNodoId() != null
@@ -284,10 +242,6 @@ public class ExpedienteService {
                     "Solo se pueden editar secciones del nodo actual del tramite");
         }
 
-        // b) El nodo debe estar sin asignar O asignado al funcionario que pide.
-        //    En paralelo cada rama puede tener su propio funcionario (el
-        //    funcionarioActualId del trámite solo refleja una), así que se valida
-        //    contra el funcionario de LA SECCIÓN de esa rama.
         String asignado = tramite.estaEnParalelo()
                 ? seccion.getFuncionarioId()
                 : tramite.getFuncionarioActualId();

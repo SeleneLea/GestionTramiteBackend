@@ -20,7 +20,6 @@ public class DocumentoSeeder {
             return;
         }
 
-        // Documentos de Identificación
         crearDocumento("Cédula de Identidad",
                 "Documento oficial de identificación personal expedido por la autoridad competente");
         crearDocumento("Pasaporte",
@@ -28,7 +27,6 @@ public class DocumentoSeeder {
         crearDocumento("Licencia de Conducir",
                 "Permiso oficial para conducir vehículos automotores");
 
-        // Documentos de Residencia y Propiedad
         crearDocumento("Comprobante de Domicilio",
                 "Documento que acredita el lugar de residencia (servicios públicos, contrato de arrendamiento)");
         crearDocumento("Título de Propiedad",
@@ -38,7 +36,6 @@ public class DocumentoSeeder {
         crearDocumento("Certificado de Deuda Predial",
                 "Documento que certifica los impuestos prediales pagados o adeudados");
 
-        // Documentos Financieros y Tributarios
         crearDocumento("Declaración de Impuestos (IMP)",
                 "Reporte anual de ingresos y gastos presentado ante la autoridad tributaria");
         crearDocumento("Certificado de Ingresos",
@@ -50,7 +47,6 @@ public class DocumentoSeeder {
         crearDocumento("Declaración de Patrimonio",
                 "Documento que lista todos los bienes y deudas de una persona física");
 
-        // Documentos Laborales
         crearDocumento("Constancia Laboral",
                 "Documento expedido por el empleador que certifica relación laboral vigente");
         crearDocumento("Certificado de Cotización",
@@ -58,7 +54,6 @@ public class DocumentoSeeder {
         crearDocumento("Carta de Referencia Laboral",
                 "Documento de recomendación de empleador anterior o actual");
 
-        // Documentos de Antecedentes
         crearDocumento("Certificado de Antecedentes Penales",
                 "Documento oficial que certifica historial penal (o ausencia del mismo)");
         crearDocumento("Certificado de Antecedentes Comerciales",
@@ -66,7 +61,6 @@ public class DocumentoSeeder {
         crearDocumento("Consulta a Centrales de Riesgo",
                 "Reporte de calificación crediticia y deudas de una persona");
 
-        // Documentos de Educación y Profesión
         crearDocumento("Diploma o Título Profesional",
                 "Documento que acredita conclusión de estudios académicos");
         crearDocumento("Certificado de Estudios",
@@ -74,7 +68,6 @@ public class DocumentoSeeder {
         crearDocumento("Cédula de Profesional",
                 "Documento que acredita calificación para ejercer profesión regulada");
 
-        // Documentos de Empresa
         crearDocumento("RIF o Registro Comercial",
                 "Documento de identificación tributaria o mercantil de la empresa");
         crearDocumento("Estatutos Sociales",
@@ -86,7 +79,6 @@ public class DocumentoSeeder {
         crearDocumento("Poder Notarial",
                 "Documento notarizado que autoriza a tercero a actuar en nombre del otorgante");
 
-        // Documentos Sanitarios
         crearDocumento("Certificado de Salud",
                 "Documento expedido por profesional médico certificando estado de salud");
         crearDocumento("Historial Médico",
@@ -94,7 +86,6 @@ public class DocumentoSeeder {
         crearDocumento("Carnet de Vacunación",
                 "Documento que acredita vacunas aplicadas");
 
-        // Documentos Diversos
         crearDocumento("Formulario Oficial Completo",
                 "Formulario de solicitud diligenciado según requisitos institucionales");
         crearDocumento("Fotografía Reciente (3x4)",

@@ -90,7 +90,6 @@ public class ActividadService {
         if (salidas == null || salidas.isEmpty()) {
             return new ArrayList<>(List.of("completar"));
         }
-        // Quitar duplicados preservando orden
         return new ArrayList<>(new LinkedHashSet<>(salidas));
     }
 

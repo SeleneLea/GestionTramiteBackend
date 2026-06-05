@@ -44,8 +44,6 @@ public class FlujoTransicionService {
             throw new IllegalArgumentException("No se puede apuntar al nodo de inicio");
         }
 
-        // Reglas de topología del nodo de decisión (if): el motor no puede mostrar ni
-        // enrutar bien una pregunta en estas posiciones (ver WorkflowEngineService).
         if ("decision".equals(destino.getTipo())) {
             if ("fork".equals(origen.getTipo())) {
                 throw new IllegalArgumentException(

@@ -16,17 +16,6 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 import java.net.URI;
 
-/**
- * Bean S3 condicional. Solo se crean los beans cuando {@code aws.enabled=true}
- * en {@code application.yml}, lo que permite arrancar el backend sin credenciales
- * mientras se configura la cuenta.
- *
- * Credenciales en orden de preferencia:
- *   1. {@code aws.s3.access-key} + {@code aws.s3.secret-key} (estáticas en YAML/env).
- *   2. {@code aws.s3.access-key} + {@code aws.s3.secret-key} + {@code aws.s3.session-token} (AWS Academy).
- *   3. Cadena por defecto del SDK: variables de entorno, archivo {@code ~/.aws/credentials},
- *      perfil EC2/ECS, etc.
- */
 @Configuration
 @ConditionalOnProperty(name = "aws.enabled", havingValue = "true")
 public class S3Config {

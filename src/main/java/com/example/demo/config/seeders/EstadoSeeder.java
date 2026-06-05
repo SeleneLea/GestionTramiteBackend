@@ -38,7 +38,7 @@ public class EstadoSeeder {
         String adminId   = userId("admin@cre.bo");
 
         for (Tramite t : tramites) {
-            // Estado actual snapshot
+
             EstadoActual ea = new EstadoActual();
             ea.setTramiteId(t.getId());
             ea.setEstado(t.getEstadoActual());
@@ -46,7 +46,6 @@ public class EstadoSeeder {
             ea.setDesde(t.getFechaInicio() != null ? t.getFechaInicio() : LocalDateTime.now());
             estadoActualRepository.save(ea);
 
-            // Historial de estados segun el tramite
             crearHistorialParaTramite(t, nodos, funcAtcId, funcTecId, funcLegId, funcOpeId, adminId);
         }
         log.info("[Seeder] EstadoActual y EstadoHistorico OK");
@@ -67,7 +66,7 @@ public class EstadoSeeder {
 
         switch (t.getCodigo()) {
             case "TRM-2024-001" -> {
-                // Tramite completado: paso por todos los nodos
+
                 hist(t.getId(), "En curso",   "En curso", null,        nAtcVer,   funcAtcId, "Documentos verificados", base.plusHours(2));
                 hist(t.getId(), "En curso", "En curso", nAtcVer,     nFork,     funcAtcId, "Derivado a inspeccion y presupuesto", base.plusDays(1));
                 hist(t.getId(), "En curso", "En curso", nFork,       nTecInsp,  funcTecId, "Inspeccion completada", base.plusDays(5));
@@ -97,8 +96,7 @@ public class EstadoSeeder {
                 hist(t.getId(), "En curso",   "Cancelado",  null,        nAtcVer,   adminId, "Tramite cancelado a solicitud del cliente", base.plusDays(2));
             }
             default -> {
-                // Historial minimo para cualquier tramite no cubierto explicitamente:
-                // garantiza >=2 entradas y un timeline no vacio para el detector de anomalias.
+
                 hist(t.getId(), null,        "En curso",          null,                 nAtcVer,            funcAtcId, "Tramite iniciado", base);
                 if (t.getNodoActualId() != null) {
                     hist(t.getId(), "En curso", t.getEstadoActual(), nAtcVer,              t.getNodoActualId(), funcTecId, "Avance a etapa actual", base.plusDays(1));

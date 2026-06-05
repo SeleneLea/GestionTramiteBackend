@@ -48,7 +48,6 @@ public class MetricaSeeder {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // --- TRM-2024-001 metricas completas (tramite completado) ---
         if (trm001 != null) {
             metrica(trm001, actVerDocs,  atcId, 6 * 3600L, false,
                     now.minusDays(30), now.minusDays(30).plusHours(6));
@@ -62,7 +61,6 @@ public class MetricaSeeder {
                     now.minusDays(10), now.minusDays(5));
         }
 
-        // --- TRM-2024-002 metricas (tramite rechazado) ---
         if (trm002 != null) {
             metrica(trm002, actVerDocs,  atcId, 1 * 3600L,   false,
                     now.minusDays(25), now.minusDays(25).plusHours(1));
@@ -70,19 +68,16 @@ public class MetricaSeeder {
                     now.minusDays(22), now.minusDays(10));
         }
 
-        // --- TRM-2024-005 metricas (tramite observado - supero SLA en legal) ---
         if (trm005 != null) {
             metrica(trm005, actVerDocs,  atcId, 5 * 3600L,    false,
                     now.minusDays(15), now.minusDays(15).plusHours(5));
             metrica(trm005, actInsp,     tecId, 4 * 24 * 3600L, false,
                     now.minusDays(13), now.minusDays(9));
-            // actContrato (LEG) sigue EN CURSO: la seccion legal continua Observada,
-            // por eso no tiene fechaFin ni se marca superoSla todavia.
+
             metrica(trm005, actContrato, legId, 7 * 24 * 3600L,
                     now.minusDays(7));
         }
 
-        // --- Cuellos de botella detectados ---
         cuelloBotella(actContrato, legId, "2024-Q1",
                 8, 14.5f, 24f, 39.6f,
                 "Acumulacion en revision legal por falta de personal y alta demanda estacional",
@@ -110,7 +105,6 @@ public class MetricaSeeder {
         metricaRepository.save(m);
     }
 
-    // Variante para actividad EN CURSO: sin fechaFin y sin superar SLA aun.
     private void metrica(String tramiteId, String actividadId, String departamentoId,
                          long tiempoSegundos, LocalDateTime inicio) {
         metrica(tramiteId, actividadId, departamentoId, tiempoSegundos, false, inicio, null);

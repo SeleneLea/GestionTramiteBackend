@@ -14,12 +14,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * Base de conocimiento local del agente CU-31. Construye respuestas usando
- * datos REALES del sistema (políticas activas, trámite del usuario, rol y módulo).
- * Se usa como fallback cuando el microservicio n8n/RAG no responde, y para
- * detectar intenciones simples sin salir del backend.
- */
 @Service
 public class AgenteAsistenciaService {
 
@@ -32,18 +26,6 @@ public class AgenteAsistenciaService {
     @Autowired
     private IaProxyService iaProxy;
 
-    /**
-     * Entrada "inteligente": clasifica la intención con el MODELO TensorFlow del
-     * microservicio (/nlp/clasificar-intencion) y responde según ella. Si el
-     * microservicio o el modelo no están disponibles, cae al detector por
-     * palabras clave (responder), así nunca se rompe.
-     */
-    /**
-     * Umbral mínimo de confianza del modelo. Si la predicción es menos segura que
-     * esto, NO confiamos en ella y caemos al detector por palabras clave (que es
-     * muy robusto para términos sueltos como "requisitos" o "qué trámites hay").
-     * Evita que una clasificación dudosa mande al usuario a la pantalla equivocada.
-     */
     private static final double UMBRAL_CONFIANZA = 0.45;
 
     public AgenteResponse responderInteligente(AgenteRequest req, String rol) {
@@ -52,30 +34,17 @@ public class AgenteAsistenciaService {
             Object intObj = r.get("intencion");
             String intencion = intObj != null ? intObj.toString() : null;
             double confianza = (r.get("confianza") instanceof Number n) ? n.doubleValue() : 0.0;
-            // TensorFlow resuelve gratis los intents conocidos y seguros. NO
-            // confiamos en él si la confianza es baja o si cae en "fuera_de_alcance":
-            // esos casos se escalan al LLM (Bedrock) para una respuesta de verdad.
             if (intencion != null && !intencion.isBlank()
                     && confianza >= UMBRAL_CONFIANZA
                     && !"fuera_de_alcance".equals(intencion)) {
                 return responderPorIntencion(intencion, req, rol);
             }
         } catch (Exception e) {
-            // microservicio/TF no disponible -> probamos LLM y luego KB
         }
-        // Híbrido CU-31: lo que TF no resolvió va al LLM (Bedrock) CON contexto
-        // real; solo aquí se gasta (minoría de consultas). Si AWS está apagado o
-        // Bedrock falla, caemos a la base de conocimiento local por palabras.
         AgenteResponse llm = responderConLlm(req, rol);
         return llm != null ? llm : responder(req, rol);
     }
 
-    /**
-     * Respuesta generativa con Bedrock (vía microservicio /nlp/asistente),
-     * aterrizada con datos REALES del sistema (políticas activas, rol, módulo y
-     * trámite del usuario). Devuelve null si el LLM no está disponible (AWS off
-     * o 503) para que el caller degrade a la KB local.
-     */
     private AgenteResponse responderConLlm(AgenteRequest req, String rol) {
         try {
             Map<String, Object> r = iaProxy.asistenteLlm(req.getConsulta(), construirContexto(req, rol));
@@ -90,12 +59,10 @@ public class AgenteAsistenciaService {
                 return resp;
             }
         } catch (Exception e) {
-            // Bedrock/AWS no disponible -> el caller usa la KB local
         }
         return null;
     }
 
-    /** Contexto breve y real que se pasa al LLM para que no invente. */
     private String construirContexto(AgenteRequest req, String rol) {
         StringBuilder sb = new StringBuilder();
         sb.append("Rol del usuario: ").append(rol != null ? rol : "CLIENTE").append(".\n");
@@ -125,7 +92,6 @@ public class AgenteAsistenciaService {
         return sb.toString();
     }
 
-    /** Respuesta a partir de la INTENCIÓN predicha por el modelo ML (TensorFlow). */
     public AgenteResponse responderPorIntencion(String intencion, AgenteRequest req, String rol) {
         String consulta = req.getConsulta() == null ? "" : req.getConsulta().toLowerCase(Locale.ROOT);
         String modulo = req.getModuloActivo() == null ? "" : req.getModuloActivo().toLowerCase(Locale.ROOT);
@@ -182,7 +148,6 @@ public class AgenteAsistenciaService {
                 resp.setAccion(accionNavegar("Ver notificaciones", "/cliente/notificaciones"));
                 return resp;
 
-            // ── FUNCIONARIO (web /funcionario) ──
             case "func_bandeja":
                 resp.setRespuesta("Tu bandeja de entrada reúne los trámites asignados a tu departamento: 1) abre \"Bandeja de entrada\", 2) verás la lista con código, política y antigüedad, 3) ordénala por fecha de llegada o por la prioridad que sugiere la IA (más urgente arriba). Toca cualquier trámite para abrirlo y empezar a atenderlo.");
                 resp.setAccion(accionNavegar("Ir a mi bandeja", "/funcionario/bandeja"));
@@ -202,7 +167,6 @@ public class AgenteAsistenciaService {
                 resp.setRespuesta("Para llenar la sección por voz: 1) dentro del expediente toca el ícono de micrófono, 2) dicta los datos con naturalidad (por ejemplo \"nombre Juan Pérez, monto 500\"), 3) la IA transcribe y rellena los campos correspondientes de tu sección activa, 4) revisa y corrige lo que haga falta antes de guardar.");
                 return resp;
 
-            // ── ADMIN (web /admin) ──
             case "admin_politicas":
                 resp.setRespuesta("Para crear y activar una política de trámite: 1) ve a \"Políticas\" y pulsa \"Nueva política\", 2) define nombre, descripción, categoría y requisitos, 3) guárdala (queda en borrador), 4) cuando ya tenga su diagrama de flujo listo, cámbiala a estado \"Activa\" para que los clientes puedan iniciarla.");
                 resp.setAccion(accionNavegar("Ir a Políticas", "/admin/politicas"));
@@ -267,7 +231,6 @@ public class AgenteAsistenciaService {
             }
         }
 
-        // ── Recomendación de trámite: el cliente describe lo que necesita ──
         if (consulta.contains("recomien") || consulta.contains("sugier") ||
             consulta.contains("que tramite") || consulta.contains("qué trámite") ||
             consulta.contains("cual tramite") || consulta.contains("cuál trámite") ||
@@ -277,7 +240,6 @@ public class AgenteAsistenciaService {
             return recomendarTramite(consulta);
         }
 
-        // ── Cómo iniciar un trámite ──
         if ((consulta.contains("inici") || consulta.contains("empez") || consulta.contains("empiez") ||
              consulta.contains("nuevo tramite") || consulta.contains("nuevo trámite")) &&
             consulta.contains("tramit")) {
@@ -286,7 +248,6 @@ public class AgenteAsistenciaService {
             return resp;
         }
 
-        // ── Estado / lista de mis trámites ──
         if (consulta.contains("mis tramite") || consulta.contains("mis trámite") ||
             consulta.contains("estado de mi") || consulta.contains("seguim")) {
             resp.setRespuesta("Puedes ver el estado de todos tus trámites en \"Mis trámites\". Toca uno para ver su línea de tiempo.");
@@ -294,7 +255,6 @@ public class AgenteAsistenciaService {
             return resp;
         }
 
-        // ── Documentos / requisitos ──
         if (consulta.contains("document") || consulta.contains("requisit") ||
             consulta.contains("adjunt") || consulta.contains("subir") || consulta.contains("falta")) {
             resp.setRespuesta("Si tu trámite pide documentos, los verás en \"Completar documentos\" o al abrir el trámite. Sube cada requisito (foto o archivo); cuando estén todos, el trámite avanza solo.");
@@ -385,12 +345,9 @@ public class AgenteAsistenciaService {
             return resp;
         }
 
-        // Fallback inteligente: en vez de "reformula tu pregunta", intentamos
-        // recomendar un trámite a partir de lo que describió el usuario.
         return recomendarTramite(consulta);
     }
 
-    /** Acción de navegación simple (web; el móvil mapea la ruta). */
     private AgenteResponse.AccionDirecta accionNavegar(String label, String ruta) {
         AgenteResponse.AccionDirecta a = new AgenteResponse.AccionDirecta();
         a.setLabel(label);
@@ -399,11 +356,6 @@ public class AgenteAsistenciaService {
         return a;
     }
 
-    /**
-     * Recomienda el trámite (política activa) que mejor coincide con la
-     * descripción del usuario, por solapamiento de palabras. Si hay match,
-     * ofrece iniciarlo directo; si no, lista los disponibles.
-     */
     private AgenteResponse recomendarTramite(String consulta) {
         String c = quitarAcentos(consulta);
         List<PoliticaNegocio> activas = politicaRepo.findByEstado("activa");
@@ -452,10 +404,6 @@ public class AgenteAsistenciaService {
         return resp;
     }
 
-    /**
-     * Lista los trámites (políticas activas) que el ciudadano puede iniciar.
-     * Responde a "¿qué trámites existen / hay / puedo hacer?" con el catálogo real.
-     */
     private AgenteResponse listarTramitesDisponibles() {
         List<PoliticaNegocio> activas = politicaRepo.findByEstado("activa");
         if (activas.isEmpty()) activas = politicaRepo.findAll();
@@ -488,7 +436,6 @@ public class AgenteAsistenciaService {
             "pero", "todo", "todos", "cliente", "clientes", "solicitud",
             "tramite", "tramites", "nueva", "nuevo", "nuevos");
 
-    /** Cuenta cuántas palabras significativas de la política aparecen en la consulta. */
     private int puntajeCoincidencia(String consultaNorm, PoliticaNegocio p) {
         String texto = quitarAcentos(((p.getNombre() == null ? "" : p.getNombre()) + " "
                 + (p.getDescripcion() == null ? "" : p.getDescripcion()) + " "
@@ -501,7 +448,6 @@ public class AgenteAsistenciaService {
         return score;
     }
 
-    /** Minúsculas sin acentos para comparar de forma robusta. */
     private String quitarAcentos(String s) {
         if (s == null) return "";
         String n = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD);

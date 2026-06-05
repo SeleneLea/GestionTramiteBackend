@@ -16,7 +16,6 @@ public class TramiteController {
     @Autowired
     private TramiteService tramiteService;
 
-    // Solo admin puede listar todos los trámites sin filtro
     @GetMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<List<Tramite>> listar() {

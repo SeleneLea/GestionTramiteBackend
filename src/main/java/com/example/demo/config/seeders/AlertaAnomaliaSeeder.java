@@ -11,20 +11,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * Parte 2 — CU-45: alertas de anomalía detectadas por la IA.
- *
- * Para que el panel admin "Anomalías IA" no aparezca vacío en la demo,
- * seedeamos 6 alertas mock cubriendo las 4 categorías canónicas:
- *   - tiempo_atipico        (trámite tarda más de la media)
- *   - secuencia_inusual     (orden de nodos fuera de patrón)
- *   - loop_derivaciones     (idas y vueltas entre departamentos)
- *   - salto_no_autorizado   (avanza saltándose una sección obligatoria)
- *
- * Las alertas apuntan a trámites reales del seeder; si no hay trámites,
- * el seeder se omite silenciosamente. Idempotente vía contador (no duplica
- * si ya hay alertas en la colección).
- */
 @Component
 @Slf4j
 public class AlertaAnomaliaSeeder {
@@ -46,8 +32,6 @@ public class AlertaAnomaliaSeeder {
 
         LocalDateTime ahora = LocalDateTime.now();
 
-        // Tomamos los primeros trámites disponibles para no inventar IDs.
-        // Si la lista tiene menos elementos, ciclamos sobre los que hay.
         crear(tramites, 0, "tiempo_atipico", 0.92f,
                 "El trámite lleva 3.4× el tiempo promedio para esta etapa (Verificación de documentos).",
                 ahora.minusHours(2));

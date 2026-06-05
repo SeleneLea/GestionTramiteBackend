@@ -5,13 +5,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
-/**
- * Centraliza el broadcast a los topics STOMP del documento colaborativo (CU-38).
- *
- * Topics:
- *   /topic/documento/{id}/edicion   — operaciones aplicadas (texto, CRDT...).
- *   /topic/documento/{id}/presencia — roster + cursor de los participantes.
- */
 @Service
 public class DocumentoCollabBroadcaster {
 

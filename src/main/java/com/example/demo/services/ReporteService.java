@@ -41,17 +41,11 @@ public class ReporteService {
     @Autowired
     private TramiteRepository tramiteRepository;
 
-    // Carpeta temporal del sistema (java.io.tmpdir -> /tmp en el contenedor):
-    // SIEMPRE escribible. La carpeta del classpath (/app) es de solo lectura en
-    // el contenedor, así que escribir ahí daba AccessDeniedException. El archivo
-    // sobrevive entre generar→descargar (mismo contenedor) sin necesitar volumen.
     private static final String STORAGE_DIR =
             System.getProperty("java.io.tmpdir") + "/tramites-reportes/";
 
-    /** Mismas columnas que el CSV: cabecera única para CSV, Excel y PDF. */
     private static final String[] COLUMNAS = {"ID", "Estado", "ClienteID", "FechaInicio"};
 
-    /** Extensión de archivo según el formato solicitado. */
     private static String extensionPara(String formato) {
         if ("EXCEL".equalsIgnoreCase(formato) || "XLSX".equalsIgnoreCase(formato)) {
             return "xlsx";
@@ -119,7 +113,6 @@ public class ReporteService {
         Files.writeString(filePath, csv.toString());
     }
 
-    /** Valores de una fila, en el mismo orden y formato que COLUMNAS. */
     private String[] valoresFila(Tramite t) {
         return new String[]{
                 t.getId() != null ? t.getId() : "",
@@ -134,7 +127,6 @@ public class ReporteService {
              OutputStream out = Files.newOutputStream(filePath)) {
             Sheet sheet = workbook.createSheet("Reporte");
 
-            // Cabecera en negrita
             CellStyle headerStyle = workbook.createCellStyle();
             Font headerFont = workbook.createFont();
             headerFont.setBold(true);

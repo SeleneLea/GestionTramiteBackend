@@ -27,11 +27,6 @@ public class ActividadRequest {
     @Min(value = 1, message = "El SLA debe ser al menos 1 hora")
     private Integer slaHoras;
 
-    /**
-     * Salidas posibles que el funcionario podrá emitir al completar la actividad.
-     * Debe contener al menos una entrada y cada valor debe ser uno de:
-     * aprobar | rechazar | derivar | observar | completar.
-     */
     @NotEmpty(message = "Debe seleccionar al menos una salida posible")
     private List<@Pattern(
             regexp = "aprobar|rechazar|derivar|observar|completar",
@@ -40,10 +35,7 @@ public class ActividadRequest {
 
     private List<String> camposRequeridos;
     private List<String> documentoIds;
-    /**
-     * Requisitos documentales con proveedor (CLIENTE/FUNCIONARIO) + obligatorio.
-     * Reemplaza a {@link #documentoIds}; si viene poblado, manda éste.
-     */
+
     private List<RequisitoDocumento> documentosRequeridos;
     private boolean reutilizable;
 }

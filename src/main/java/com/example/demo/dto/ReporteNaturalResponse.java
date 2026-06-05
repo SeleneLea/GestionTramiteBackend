@@ -18,6 +18,6 @@ public class ReporteNaturalResponse {
     private long totalFilas;
     private String urlDescarga;
     private String formato;
-    /** Pipeline Mongo serializado, conservado para auditoría/explicación. */
+
     private String queryGenerada;
 }

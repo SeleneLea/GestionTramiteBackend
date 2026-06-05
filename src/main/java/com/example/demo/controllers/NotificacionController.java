@@ -42,11 +42,6 @@ public class NotificacionController {
         return ResponseEntity.ok(n);
     }
 
-    /**
-     * CU-28: stream Server-Sent Events. Reemplaza el polling de 30s del cliente
-     * móvil — las notificaciones llegan en cuanto se crean en el backend.
-     * El cliente debe reconectar automáticamente si la conexión se cierra.
-     */
     @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @PreAuthorize("isAuthenticated()")
     public SseEmitter stream(Authentication authentication) {

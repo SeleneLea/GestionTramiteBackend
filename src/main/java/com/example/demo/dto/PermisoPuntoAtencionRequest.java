@@ -15,7 +15,7 @@ public class PermisoPuntoAtencionRequest {
     private String actividadId;
 
     @NotBlank(message = "nivelAcceso es obligatorio")
-    private String nivelAcceso;   // SOLO_LECTURA | SOLO_EDICION | LECTURA_Y_EDICION
+    private String nivelAcceso;
 
     private List<String> tiposDocumentoVisibles;
 }

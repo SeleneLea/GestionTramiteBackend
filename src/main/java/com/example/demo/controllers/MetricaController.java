@@ -38,11 +38,6 @@ public class MetricaController {
     @Autowired
     private MetricaYCuelloService metricaService;
 
-    /**
-     * P1 §7 — Dashboard de monitoreo en tiempo real: trámites por estado
-     * (+activos/cerrados), tiempo promedio por departamento y por política, y
-     * ranking de carga por departamento.
-     */
     @GetMapping("/dashboard")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<Map<String, Object>> getDashboard() {

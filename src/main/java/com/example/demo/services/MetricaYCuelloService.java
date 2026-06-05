@@ -73,12 +73,6 @@ public class MetricaYCuelloService {
         metricaRepo.save(m);
     }
 
-    /**
-     * P1 §7 — Resumen del dashboard de monitoreo en tiempo real: conteo de
-     * trámites por estado (+activos/cerrados), tiempo promedio de atención por
-     * departamento y por política, y ranking de carga (trámites activos) por
-     * departamento. Calcula sobre el estado vivo de la BD en cada llamada.
-     */
     public Map<String, Object> resumenDashboard() {
         List<Tramite> tramites = tramiteRepository.findAll();
         List<MetricaTiempo> metricas = metricaRepo.findAll();
@@ -92,10 +86,6 @@ public class MetricaYCuelloService {
             nombrePolitica.put(p.getId(), p.getNombre() != null ? p.getNombre() : p.getId());
         }
 
-        // ── Conteo por estado + totales ──
-        // Estado canónico (EstadoTramite.from normaliza literales legacy) y
-        // "activo" según el modelo de estados, no según fechaCierreReal: los
-        // cancelados/cerrados sin fecha contarían como activos para siempre.
         Map<String, Integer> porEstado = new LinkedHashMap<>();
         int activos = 0;
         for (Tramite t : tramites) {
@@ -106,7 +96,6 @@ public class MetricaYCuelloService {
             if (!com.example.demo.models.EstadoTramite.esFinalizado(t.getEstadoActual())) activos++;
         }
 
-        // ── Tiempo promedio (horas) por departamento y por política ──
         Map<String, List<Long>> segPorDepto = new HashMap<>();
         Map<String, List<Long>> segPorPolitica = new HashMap<>();
         Map<String, String> politicaDeTramite = new HashMap<>();
@@ -114,8 +103,6 @@ public class MetricaYCuelloService {
             if (t.getPoliticaId() != null) politicaDeTramite.put(t.getId(), t.getPoliticaId());
         }
         for (MetricaTiempo m : metricas) {
-            // Solo actividades COMPLETADAS (con fin): una métrica "en curso"
-            // inflaría el promedio de tiempo de atención.
             if (m.getFechaFinActividad() == null) continue;
             if (m.getDepartamentoId() != null) {
                 segPorDepto.computeIfAbsent(m.getDepartamentoId(), k -> new ArrayList<>())
@@ -128,9 +115,6 @@ public class MetricaYCuelloService {
             }
         }
 
-        // ── Carga (trámites activos) por departamento, vía su(s) nodo(s) activo(s).
-        //    Deduplicado por trámite: dos ramas paralelas en el mismo depto cuentan
-        //    como UN trámite (la tarjeta promete "trámites activos", no tareas). ──
         Map<String, Integer> cargaPorDepto = new HashMap<>();
         for (Tramite t : tramites) {
             if (com.example.demo.models.EstadoTramite.esFinalizado(t.getEstadoActual())) continue;
@@ -160,7 +144,6 @@ public class MetricaYCuelloService {
         return out;
     }
 
-    /** [{nombre, total}] ordenado desc; resuelve nombres si se da el mapa. */
     private List<Map<String, Object>> listaConteo(Map<String, Integer> conteo,
                                                   Map<String, String> nombres) {
         List<Map<String, Object>> out = new ArrayList<>();
@@ -176,7 +159,6 @@ public class MetricaYCuelloService {
         return out;
     }
 
-    /** [{nombre, promedioHoras, muestras}] ordenado por promedio desc. */
     private List<Map<String, Object>> listaPromedios(Map<String, List<Long>> segundos,
                                                      Map<String, String> nombres) {
         List<Map<String, Object>> out = new ArrayList<>();

@@ -61,16 +61,10 @@ public class TramiteDecisionService {
     @Autowired
     private NotificacionService notificacionService;
 
-    /**
-     * REASIGNAR (antes "derivar"): pasa el trámite a otro funcionario del MISMO
-     * nodo, sin avanzar el flujo. No confundir con "Derivar" (= completar el nodo
-     * y pasar al siguiente), que es {@code WorkflowEngineService.completarNodo}.
-     */
     public Tramite reasignarTramite(String tramiteId, DerivarTramiteRequest request, String usuarioQueReasigna) {
         Tramite tramite = tramiteRepository.findById(tramiteId)
                 .orElseThrow(() -> new IllegalArgumentException("Tramite no encontrado: " + tramiteId));
 
-        // BK3-04: no se puede reasignar un trámite ya cerrado (terminal).
         if (EstadoTramite.esFinalizado(tramite.getEstadoActual())) {
             throw new IllegalArgumentException("El tramite ya esta cerrado");
         }
@@ -79,10 +73,6 @@ public class TramiteDecisionService {
         tramite.setFuncionarioActualId(request.getNuevoFuncionarioId());
         tramite = tramiteRepository.save(tramite);
 
-        // BK4-02: la reasignación debe reflejarse en la(s) sección(es) del nodo
-        // activo; si no, el expediente/flujo sigue mostrando al funcionario
-        // anterior hasta que el nuevo acepte. Lineal: la sección del nodoActual.
-        // Paralelo: todas las secciones activas de las ramas en curso.
         if (tramite.getExpedienteId() != null) {
             LocalDateTime now = LocalDateTime.now();
             String nuevo = request.getNuevoFuncionarioId();
@@ -117,7 +107,6 @@ public class TramiteDecisionService {
                         "motivo", request.getMotivo() != null ? request.getMotivo() : ""
                 ));
 
-        // CU-11: notificacion al nuevo funcionario receptor.
         notificacionService.crearNotificacion(
                 request.getNuevoFuncionarioId(),
                 tramite.getId(),
@@ -135,12 +124,10 @@ public class TramiteDecisionService {
         Tramite tramite = tramiteRepository.findById(tramiteId)
                 .orElseThrow(() -> new IllegalArgumentException("Tramite no encontrado: " + tramiteId));
 
-        // BK3-04: no se puede observar/devolver un trámite ya cerrado (terminal).
         if (EstadoTramite.esFinalizado(tramite.getEstadoActual())) {
             throw new IllegalArgumentException("El tramite ya esta cerrado");
         }
 
-        // Regla: para observar hay que marcar al menos un documento a corregir.
         if (request.getDocumentosObservados() == null || request.getDocumentosObservados().isEmpty()) {
             throw new IllegalArgumentException(
                     "Debe seleccionar al menos un documento a corregir para observar el tramite");
@@ -149,19 +136,14 @@ public class TramiteDecisionService {
         String estadoAnterior = tramite.getEstadoActual();
         String nodoAnteriorId = tramite.getNodoActualId();
 
-        // BK3-03: recordar si venía en paralelo ANTES de vaciar la lista, para
-        // luego cerrar las otras ramas activas al observar.
         boolean veniaEnParalelo = tramite.estaEnParalelo();
 
         tramite.setNodoActualId(request.getNodoDestinoId());
         tramite.setEstadoActual(EstadoTramite.OBSERVADO.getValor());
         tramite.setFuncionarioActualId(null);
-        // WF-05: limpiar el paralelismo para que estaEnParalelo() sea false y
-        // resolverNodoActivo() use el nodo de subsanación destino.
         tramite.setNodosParalellosActivos(new ArrayList<>());
         tramite = tramiteRepository.save(tramite);
 
-        // Nivel nodo: la sección destino queda Observado (en espera de subsanación).
         if (tramite.getExpedienteId() != null && request.getNodoDestinoId() != null) {
             seccionRepository.findByExpedienteIdOrderByOrdenSeccionAsc(tramite.getExpedienteId())
                     .stream()
@@ -170,16 +152,12 @@ public class TramiteDecisionService {
                     .ifPresent(s -> {
                         s.setEstado(EstadoSeccion.OBSERVADO.getValor());
                         s.setFechaAsignacion(LocalDateTime.now());
-                        // Documentos que el funcionario marcó como "mal" (los que el
-                        // cliente debe corregir). Vacío si no se especifican.
                         s.setDocumentosObservados(request.getDocumentosObservados() != null
                                 ? new ArrayList<>(request.getDocumentosObservados())
                                 : new ArrayList<>());
                         seccionRepository.save(s);
                     });
 
-            // BK3-03: si venía en paralelo, cerrar las OTRAS ramas activas
-            // (Derivada) para que no queden abiertas tras la observación.
             if (veniaEnParalelo) {
                 LocalDateTime now = LocalDateTime.now();
                 for (SeccionExpediente s : seccionRepository.findByExpedienteId(tramite.getExpedienteId())) {
@@ -212,7 +190,6 @@ public class TramiteDecisionService {
                         "motivo", request.getObservaciones() != null ? request.getObservaciones() : ""
                 ));
 
-        // CU-17: avisar al cliente que debe corregir (sin reempezar el trámite).
         notificacionService.crearNotificacion(
                 tramite.getClienteId(),
                 tramite.getId(),
@@ -226,23 +203,15 @@ public class TramiteDecisionService {
         return tramite;
     }
 
-    /** Variante sin archivo (JSON): rechazo, o aprobación de políticas que no exigen resolución. */
     public Tramite decisionFinal(String tramiteId, DecisionFinalRequest request, String usuarioResponsable) {
         return decisionFinal(tramiteId, request, usuarioResponsable, null, null, null, null);
     }
 
-    /**
-     * Decisión final del responsable. Al APROBAR, si la política
-     * {@code requiereDocumentoResolucion}, exige adjuntar el documento de
-     * resolución; si llega un archivo (obligatorio u opcional) se sube al
-     * repositorio y se enlaza en el trámite para que el cliente lo descargue.
-     */
     public Tramite decisionFinal(String tramiteId, DecisionFinalRequest request, String usuarioResponsable,
                                  MultipartFile archivoResolucion, String rol, String ip, String userAgent) {
         Tramite tramite = tramiteRepository.findById(tramiteId)
                 .orElseThrow(() -> new IllegalArgumentException("Tramite no encontrado: " + tramiteId));
 
-        // BK3-01: no se puede decidir sobre un trámite ya cerrado (terminal).
         if (EstadoTramite.esFinalizado(tramite.getEstadoActual())) {
             throw new IllegalArgumentException("El tramite ya esta cerrado");
         }
@@ -260,9 +229,6 @@ public class TramiteDecisionService {
                             "justificacion", request.getJustificacion() != null ? request.getJustificacion() : ""
                     ));
 
-            // WF-02 / BK3-02: cerrar TODAS las secciones activas del expediente
-            // (no solo la del nodo actual) antes de nullificar el nodo, para que
-            // el rechazo no deje ramas paralelas abiertas.
             String expedienteId = tramite.getExpedienteId();
             if (expedienteId != null) {
                 LocalDateTime now = LocalDateTime.now();
@@ -282,8 +248,6 @@ public class TramiteDecisionService {
             tramite.setFechaCierreReal(LocalDateTime.now());
             Tramite guardado = tramiteRepository.save(tramite);
 
-            // BK4-04: registrar el cambio en el historial (igual que devolver),
-            // para que el rechazo no quede ausente del historial del trámite.
             EstadoHistorico historico = new EstadoHistorico();
             historico.setTramiteId(guardado.getId());
             historico.setEstadoAnterior(estadoAnterior);
@@ -298,33 +262,21 @@ public class TramiteDecisionService {
             return guardado;
         }
 
-        // BK4-03: aprobar un trámite con ramas paralelas aún abiertas solo
-        // completaría una rama y dejaría el trámite "En curso" sin aprobar
-        // (nunca se alcanza el JOIN). Exigir cerrar el paralelo antes de aprobar.
         if (tramite.estaEnParalelo()) {
             throw new IllegalStateException(
                     "No se puede aprobar: el tramite tiene ramas paralelas pendientes de completar el JOIN");
         }
 
-        // APROBAR → gestionar el documento de resolución entregable.
         PoliticaNegocio politica = politicaRepository.findById(tramite.getPoliticaId()).orElse(null);
         boolean requiere = politica != null && politica.isRequiereDocumentoResolucion();
         boolean hayArchivo = archivoResolucion != null && !archivoResolucion.isEmpty();
 
-        // BK-A2: validar ANTES de registrar la traza para no dejar una traza
-        // fantasma de "aprobar" si la aprobación aborta por validación.
         if (requiere && !hayArchivo) {
             throw new IllegalArgumentException(
                     "RESOLUCION_REQUERIDA: esta política exige adjuntar el documento de resolución al aprobar");
         }
 
-        // BK4-01: subir la resolución ANTES de registrar la traza "aprobar". Si
-        // S3 falla, la excepción aborta aquí y no deja una traza fantasma de
-        // aprobación sobre un trámite cuya resolución nunca llegó a almacenarse.
         if (hayArchivo) {
-            // El repositorio es 1:1 al trámite (idempotente y resistente a carrera):
-            // se asegura/crea aquí para almacenar la resolución, sin depender de un
-            // repositorioId precalculado en la política.
             String repositorioId = repositorioDocumentalService
                     .crearAlIniciarTramite(tramite.getId(), tramite.getPoliticaId())
                     .getId();
@@ -344,10 +296,6 @@ public class TramiteDecisionService {
             tramite.setTipoResolucion("Resolución");
             tramiteRepository.save(tramite);
 
-            // Aviso PUSH adicional al cliente: el funcionario le devolvió el
-            // documento de resolución. Es independiente del "trámite aprobado"
-            // que emite el motor al cerrar. Best-effort: nunca debe abortar la
-            // aprobación si la notificación falla.
             notificarResolucionAlCliente(tramite, resolucion);
         }
 
@@ -358,18 +306,12 @@ public class TramiteDecisionService {
                         "justificacion", request.getJustificacion() != null ? request.getJustificacion() : ""
                 ));
 
-        // Avanzar el motor: completa el último nodo y cierra el trámite → Aprobado.
         CompletarNodoRequest engineReq = new CompletarNodoRequest();
         engineReq.setDecision("si");
         engineReq.setFuncionarioId(usuarioResponsable);
         return workflowEngineService.completarNodo(tramite.getId(), engineReq);
     }
 
-    /**
-     * Notifica al cliente que ya tiene disponible el documento de resolución que
-     * el funcionario subió para devolvérselo. Mensaje: en qué actividad se generó,
-     * qué documento y dónde verlo (repositorio del trámite). Best-effort.
-     */
     private void notificarResolucionAlCliente(Tramite tramite, DocumentoArchivo resolucion) {
         try {
             if (tramite.getClienteId() == null) return;

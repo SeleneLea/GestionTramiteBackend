@@ -8,14 +8,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 
-/**
- * CU-38 — Purga participantes y sesiones inactivas según el TTL configurado.
- *
- * Default: corre cada 60 s y purga participantes sin latido en los últimos
- * {@code app.documental.edicion-colaborativa.ttl-sesion-minutos} minutos.
- *
- * Desactivable con {@code app.scheduler.sesion-edicion-purga.enabled=false}.
- */
 @Service
 @Slf4j
 public class SesionEdicionPurgaScheduler {

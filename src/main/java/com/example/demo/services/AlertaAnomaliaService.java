@@ -16,12 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * CU-45 — Detección de anomalías en flujo de trámites.
- *
- * Llama al microservicio IA con las secuencias históricas de cada trámite
- * activo y persiste las anomalías detectadas.
- */
 @Service
 public class AlertaAnomaliaService {
 
@@ -30,7 +24,6 @@ public class AlertaAnomaliaService {
     @Autowired private EstadoHistoricoRepository estadoHistoricoRepository;
     @Autowired private AlertaAnomaliaRepository alertaRepo;
 
-    /** Ejecuta la detección sobre todos los trámites activos. */
     public List<AlertaAnomalia> detectarYPersistir() {
         List<Tramite> tramites = tramiteRepository.findAll();
         List<Map<String, Object>> secuencias = new ArrayList<>();

@@ -11,12 +11,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 
-/**
- * CU-33 — Archivo del repositorio documental. Apunta a la versión actual;
- * el historial completo vive en {@link VersionDocumento}.
- *
- * Valores válidos de {@code tipoDocumento}: PDF | IMAGEN | WORD | EXCEL | AUDIO | VIDEO | OTRO.
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -39,11 +33,6 @@ public class DocumentoArchivo {
     private String actividadId;
     private String nodoId;
 
-    /**
-     * FK al {@link Documento} del catálogo (el REQUISITO que este archivo cumple).
-     * Lo elige el cliente al subir. {@code null} para subidas libres / documentos legacy.
-     * La compuerta del motor usa esto para saber qué requisitos obligatorios ya están cubiertos.
-     */
     private String documentoRequeridoId;
 
     private String nombreLogico;
@@ -53,7 +42,6 @@ public class DocumentoArchivo {
     private String versionActualId;
     private int numeroVersionActual;
 
-    /** Si no es null, el documento está bloqueado para edición exclusiva. */
     private String bloqueadoPor;
     private LocalDateTime fechaBloqueo;
 
@@ -62,6 +50,5 @@ public class DocumentoArchivo {
 
     private boolean activo;
 
-    /** {@code true} si es el documento de resolución entregable del trámite. */
     private boolean esResolucion;
 }

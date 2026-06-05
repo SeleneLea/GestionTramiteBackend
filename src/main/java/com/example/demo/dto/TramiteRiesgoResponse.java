@@ -13,6 +13,6 @@ public class TramiteRiesgoResponse {
 
     private String tramiteId;
     private Float probSuperarSla;
-    private String nivel;        // bajo | medio | alto | desconocido
+    private String nivel;
     private List<String> razones;
 }

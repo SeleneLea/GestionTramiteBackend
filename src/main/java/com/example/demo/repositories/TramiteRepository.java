@@ -17,10 +17,6 @@ public interface TramiteRepository extends MongoRepository<Tramite, String> {
 
     List<Tramite> findByClienteId(String clienteId);
 
-    /**
-     * Buscar trámites de un cliente ordenados por fecha de inicio descendente
-     * (más recientes primero)
-     */
     List<Tramite> findByClienteIdOrderByFechaInicioDesc(String clienteId);
 
     List<Tramite> findByNodoActualIdIn(List<String> nodoIds);

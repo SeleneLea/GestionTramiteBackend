@@ -9,12 +9,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * CU-36 — Configurar permisos por punto de atención.
- *
- * Niveles válidos: SOLO_LECTURA | SOLO_EDICION | LECTURA_Y_EDICION.
- * Default cuando no hay configuración explícita: SOLO_LECTURA (RN-P01).
- */
 @Service
 public class PermisoDocumentalService {
 
@@ -47,7 +41,7 @@ public class PermisoDocumentalService {
                     PermisoPuntoAtencion p = new PermisoPuntoAtencion();
                     p.setPoliticaId(politicaId);
                     p.setActividadId(actividadId);
-                    p.setNivelAcceso(SOLO_LECTURA);   // RN-P01
+                    p.setNivelAcceso(SOLO_LECTURA);
                     return p;
                 });
     }
@@ -56,12 +50,10 @@ public class PermisoDocumentalService {
         return repo.findByPoliticaId(politicaId);
     }
 
-    /** True si el nivel del permiso permite subir/editar documentos. */
     public boolean permiteEscritura(String nivelAcceso) {
         return SOLO_EDICION.equals(nivelAcceso) || LECTURA_Y_EDICION.equals(nivelAcceso);
     }
 
-    /** True si el nivel del permiso permite leer documentos. */
     public boolean permiteLectura(String nivelAcceso) {
         return SOLO_LECTURA.equals(nivelAcceso) || LECTURA_Y_EDICION.equals(nivelAcceso);
     }

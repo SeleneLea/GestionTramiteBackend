@@ -31,7 +31,6 @@ public class CampoPlantillaRequest {
 
     private String validacionRegex;
 
-    /** Solo tipo "calculado": expresión aritmética sobre otros campos (por nombre). */
     @Size(max = 300, message = "La formula no puede exceder 300 caracteres")
     private String formula;
 

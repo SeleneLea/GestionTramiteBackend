@@ -9,22 +9,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 
-/**
- * Parte 2 — CU-32: contenedor del repositorio documental, asociado 1:1 a un
- * Tramite.
- *
- * Las políticas sembradas por {@code PoliticaSeeder} se insertan directo al
- * repo MongoDB, y los trámites sembrados por {@code TramiteSeeder} tampoco
- * pasan por el hook que crea el repositorio al iniciar un trámite. Resultado:
- * {@code GET /api/tramites/{id}/repositorio} devolvería 404 hasta que se sube
- * el primer documento.
- *
- * Este seeder cierra ese gap creando el contenedor (sin documentos, sin
- * archivos físicos en S3 — sólo la entrada en MongoDB) para cada trámite,
- * y enlaza {@code tramite.repositorioId} al id del repositorio. Idempotente:
- * si el repositorio ya existe (por tramiteId) lo deja como está, pero igual
- * asegura el enlace inverso en el trámite.
- */
 @Component
 @Slf4j
 public class RepositorioDocumentalSeeder {

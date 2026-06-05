@@ -13,12 +13,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * Siembra de transcripciones de voz de funcionarios sobre las secciones de
- * expediente derivadas. La siembra de {@code Adjunto} fue retirada: los
- * documentos físicos ahora se modelan con {@code DocumentoArchivo} asociado
- * 1:1 al trámite (ver {@code DocumentoArchivoService.subirPorTramite}).
- */
 @Component
 @Slf4j
 public class AdjuntoSeeder {

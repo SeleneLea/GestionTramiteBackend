@@ -60,7 +60,6 @@ public class WorkflowController {
     @Autowired private DocumentoRepository documentoRepository;
     @Autowired private DocumentoArchivoService documentoArchivoService;
     @Autowired private RequisitoDocumentoService requisitoDocumentoService;
-    /** CU-44 — proxy al microservicio para ordenar la bandeja por IA. Opcional. */
     @Autowired(required = false) private IaProxyService iaProxy;
 
     @PostMapping("/iniciar")
@@ -122,12 +121,10 @@ public class WorkflowController {
         resp.put("nodoActualId", t.getNodoActualId());
         resp.put("enParalelo", t.estaEnParalelo());
         resp.put("nodosParalellosActivos", t.getNodosParalellosActivos());
-        // Documento de resolución entregable (si el trámite ya lo produjo).
         resp.put("documentoResolucionId", t.getDocumentoResolucionId());
         resp.put("tipoResolucion", t.getTipoResolucion());
         resp.put("fechaResolucion", t.getFechaResolucion());
 
-        // Política y cliente (nombres resueltos)
         if (t.getPoliticaId() != null) {
             politicaRepository.findById(t.getPoliticaId())
                     .ifPresent(p -> resp.put("politicaNombre", p.getNombre()));
@@ -139,7 +136,6 @@ public class WorkflowController {
                             (u.getApellido() != null ? " " + u.getApellido() : "")));
         }
 
-        // Nodo actual (anidado, como espera el frontend)
         if (t.getNodoActualId() != null) {
             nodoRepository.findById(t.getNodoActualId()).ifPresent(nodo -> {
                 resp.put("nodoActualNombre", nodo.getNombre());
@@ -150,21 +146,12 @@ public class WorkflowController {
                 nodoActual.put("departamentoId", nodo.getDepartamentoId());
                 nodoActual.put("actividadId", nodo.getActividadId());
                 nodoActual.put("funcionarioId", t.getFuncionarioActualId());
-                // Salidas posibles DERIVADAS de la posición del nodo en el flujo
-                // (no se configuran a mano): si su siguiente es un cierre (fin) salen
-                // 'aprobar'/'rechazar'; si avanza a otro paso sale 'completar'.
-                // 'observar' (devolver) está siempre disponible.
                 {
                     List<FlujoTransicion> salidasNodo = flujoRepository.findByNodoOrigenId(nodo.getId());
-                    // Es un nodo de cierre si no tiene salida (último paso) o si alguna
-                    // de sus salidas lleva directamente a un 'fin'.
                     boolean haciaCierre = salidasNodo.isEmpty() || salidasNodo.stream()
                             .anyMatch(tr -> nodoRepository.findById(tr.getNodoDestinoId())
                                     .map(nd -> "fin".equals(nd.getTipo()))
                                     .orElse(false));
-                    // Rechazar y Observar SIEMPRE disponibles (un trámite puede
-                    // rechazarse o devolverse en cualquier punto). Lo que cambia por
-                    // posición es el avance: 'aprobar' (cierre) vs 'completar'.
                     nodoActual.put("salidasPosibles", haciaCierre
                             ? List.of("aprobar", "rechazar", "observar")
                             : List.of("completar", "rechazar", "observar"));
@@ -188,15 +175,8 @@ public class WorkflowController {
             });
         }
 
-        // Look-ahead: si el nodo siguiente a la actividad actual es un 'decision'
-        // (if), exponer su pregunta + ramas para que el funcionario responda Sí/No
-        // al avanzar. El motor (avanzarDesde case 'decision') enruta luego por la
-        // etiqueta de la transición elegida. El funcionario solo ve la pregunta,
-        // nunca el formulario del paso posterior.
         if (t.getNodoActualId() != null) {
             List<FlujoTransicion> salientes = flujoRepository.findByNodoOrigenId(t.getNodoActualId());
-            // El motor (avanzarDesde case actividad) toma la primera transición; usamos
-            // la misma selección para que el look-ahead coincida con el ruteo real.
             if (!salientes.isEmpty()) {
                 nodoRepository.findById(salientes.get(0).getNodoDestinoId())
                         .filter(dest -> "decision".equals(dest.getTipo()))
@@ -223,9 +203,6 @@ public class WorkflowController {
             }
         }
 
-        // Progreso = secciones completadas / total. De paso, exponemos el
-        // expediente con sus secciones (una por paso/nodo) para la pestaña
-        // "Secciones" del cliente (web y móvil leen expediente.secciones).
         int progreso = 0;
         if (t.getExpedienteId() != null) {
             List<SeccionExpediente> secciones = seccionRepository
@@ -243,8 +220,6 @@ public class WorkflowController {
                 sm.put("estado", s.getEstado());
                 sm.put("fechaInicio", s.getFechaAsignacion());
                 sm.put("fechaCompletacion", s.getFechaCompletado());
-                // El "nombre" del paso es el nombre del nodo; resolvemos también
-                // la actividad y el departamento para mostrarlos en la sección.
                 nodoRepository.findById(s.getNodoId()).ifPresent(n -> {
                     sm.put("nombre", n.getNombre());
                     if (n.getActividadId() != null) {
@@ -267,7 +242,6 @@ public class WorkflowController {
         }
         resp.put("progreso", progreso);
 
-        // Historial: combinar EstadoHistorico + secciones para mostrar el recorrido
         List<EstadoHistorico> historicos = historicoRepository.findByTramiteIdOrderByFechaCambioAsc(t.getId());
         List<NodoDiagrama> todosNodos = nodoRepository.findAll();
         List<Map<String, Object>> historial = historicos.stream().map(h -> {
@@ -290,7 +264,6 @@ public class WorkflowController {
         return ResponseEntity.ok(resp);
     }
 
-    /** Etiqueta legible de una rama del nodo decisión (si/no → Sí/No). */
     private String capitalizarRama(String etiqueta) {
         if (etiqueta == null || etiqueta.isBlank()) return etiqueta;
         String e = etiqueta.trim().toLowerCase();
@@ -318,7 +291,6 @@ public class WorkflowController {
                     .ifPresent(p -> resp.setPoliticaNombre(p.getNombre()));
         }
 
-        // Resolver diagrama desde la política
         String diagramaId = t.getPoliticaId() != null
                 ? politicaRepository.findById(t.getPoliticaId())
                         .map(p -> p.getDiagramaId()).orElse(null)
@@ -329,13 +301,11 @@ public class WorkflowController {
             return ResponseEntity.ok(resp);
         }
 
-        // Nodos del diagrama ordenados
         List<NodoDiagrama> nodos = nodoRepository.findAll().stream()
                 .filter(n -> diagramaId.equals(n.getDiagramaId()))
                 .sorted(java.util.Comparator.comparingInt(NodoDiagrama::getOrden))
                 .toList();
 
-        // Secciones del expediente del trámite, indexadas por nodoId
         Map<String, SeccionExpediente> seccionesPorNodo = new HashMap<>();
         if (t.getExpedienteId() != null) {
             seccionRepository.findByExpedienteIdOrderByOrdenSeccionAsc(t.getExpedienteId())
@@ -346,13 +316,11 @@ public class WorkflowController {
                     });
         }
 
-        // Última observación/motivo por nodo (del historial), para mostrarla en
-        // el paso correspondiente del flujo (vista unificada).
         Map<String, String> obsPorNodo = new HashMap<>();
         historicoRepository.findByTramiteIdOrderByFechaCambioAsc(t.getId()).forEach(h -> {
             if (h.getMotivo() != null && !h.getMotivo().isBlank()) {
                 String nid = h.getNodoNuevoId() != null ? h.getNodoNuevoId() : h.getNodoAnteriorId();
-                if (nid != null) obsPorNodo.put(nid, h.getMotivo()); // orden asc → gana el último
+                if (nid != null) obsPorNodo.put(nid, h.getMotivo());
             }
         });
 
@@ -387,9 +355,6 @@ public class WorkflowController {
             });
         }
 
-        // Nodo de decisión (if): exponemos la pregunta y a dónde lleva cada rama,
-        // para que en la vista del flujo se muestre la pregunta (no "decisión") y
-        // el usuario entienda por qué camino sigue el trámite según la respuesta.
         if ("decision".equals(nodo.getTipo())) {
             dto.setPregunta(nodo.getNombre());
             List<FlujoTransicion> ramas = flujoRepository.findByNodoOrigenId(nodo.getId());
@@ -475,7 +440,6 @@ public class WorkflowController {
         }
         String rol = auth.getAuthorities().stream()
                 .findFirst().map(a -> a.getAuthority()).orElse("");
-        // CU-37: esto ES una descarga (lo que el cliente se lleva), no una lectura.
         DocumentoArchivoService.PreviewData preview = documentoArchivoService.generarDescarga(
                 t.getDocumentoResolucionId(), auth.getName(), rol,
                 httpRequest.getRemoteAddr(), httpRequest.getHeader("User-Agent"));
@@ -518,17 +482,13 @@ public class WorkflowController {
         List<Tramite> pendientes = activos.stream()
                 .filter(t -> t.getNodoActualId() != null || t.estaEnParalelo())
                 .filter(t -> esAdmin || userId.equals(t.getFuncionarioActualId()))
-                // No mostrar en la bandeja los que están en COMPUERTA (esperando
-                // documentos del cliente): aún no le toca al funcionario.
                 .filter(t -> !esperandoDocumentosCliente(t))
                 .toList();
 
-        // CU-44 — reordenar con IA si se solicita y el proxy está disponible.
         if ("ia".equalsIgnoreCase(ordenarPor) && iaProxy != null) {
             try {
                 pendientes = reordenarPorIa(pendientes, userId);
             } catch (Exception ex) {
-                // Fallback: si el microservicio falla, devolver orden por fecha.
                 org.slf4j.LoggerFactory.getLogger(WorkflowController.class)
                         .warn("[CU-44] reordenado IA falló, cayendo a orden por fecha: {}", ex.getMessage());
             }
@@ -540,7 +500,6 @@ public class WorkflowController {
         return ResponseEntity.ok(respuesta);
     }
 
-    /** ¿El paso ACTUAL del trámite está en COMPUERTA (esperando documentos del cliente)? */
     private boolean esperandoDocumentosCliente(Tramite t) {
         if (t.getExpedienteId() == null || t.getNodoActualId() == null) return false;
         return seccionRepository.findByExpedienteIdOrderByOrdenSeccionAsc(t.getExpedienteId()).stream()
@@ -563,7 +522,6 @@ public class WorkflowController {
 
         List<Map<String, Object>> ordenIa = iaProxy.prioridades(funcionarioId, payload);
 
-        // Construir mapa id → score para reordenar conservando los Tramite originales.
         Map<String, Double> scoreById = new HashMap<>();
         Map<String, String> motivoById = new HashMap<>();
         for (Map<String, Object> r : ordenIa) {
@@ -573,7 +531,6 @@ public class WorkflowController {
             motivoById.put(id, r.get("motivo") != null ? r.get("motivo").toString() : null);
         }
 
-        // Orden descendente por score; si IA no devolvió score para alguno, va al final.
         return tramites.stream()
                 .sorted((a, b) -> Double.compare(
                         scoreById.getOrDefault(b.getId(), -1d),
@@ -610,7 +567,6 @@ public class WorkflowController {
             nodoRepository.findById(t.getNodoActualId())
                     .ifPresent(n -> m.put("nodoActualNombre", n.getNombre()));
         }
-        // progreso
         if (t.getExpedienteId() != null) {
             List<SeccionExpediente> secciones = seccionRepository
                     .findByExpedienteIdOrderByOrdenSeccionAsc(t.getExpedienteId());
@@ -622,9 +578,6 @@ public class WorkflowController {
                 progreso = (int) Math.round(100.0 * completadas / secciones.size());
             }
             m.put("progreso", progreso);
-            // Estado de la sección del nodo actual: permite a la app distinguir en la
-            // lista la COMPUERTA ('Pendiente de documentos', el trámite avanzó) del
-            // estado normal, sin abrir cada trámite.
             if (t.getNodoActualId() != null) {
                 secciones.stream()
                         .filter(s -> t.getNodoActualId().equals(s.getNodoId()))

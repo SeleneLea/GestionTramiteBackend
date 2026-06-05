@@ -23,15 +23,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * CU-14 — Diseño de flujo por prompt.
- *
- * Intenta primero la IA real (microservicio FastAPI → Gemini), que interpreta el
- * lenguaje natural y devuelve la estructura del diagrama (nodos + transiciones,
- * incluida la topología mixta y qué pasos van en paralelo). El backend la
- * materializa, mapea departamentos y ENLAZA actividades reutilizables. Si la IA
- * no está disponible (provider local / micro caído), cae a una heurística.
- */
 @Service
 public class PromptFlowService {
 
@@ -46,18 +37,13 @@ public class PromptFlowService {
 
     @SuppressWarnings("unchecked")
     public PromptFlujoResponse generarDesdePrompt(PromptFlujoRequest req, String creadorId) {
-        // 1:1 política↔diagrama: no generar un 2º diagrama para una política que ya
-        // tiene uno (mismo guard que la creación manual).
         if (req.getPoliticaId() != null && !req.getPoliticaId().isBlank()) {
             diagramaWorkflowService.validarPoliticaSinDiagrama(req.getPoliticaId());
         }
-        // Red de seguridad extra: si el PROMPT menciona por NOMBRE una política que
-        // ya tiene diagrama, rechazar aunque no se haya elegido en el desplegable.
         validarPromptNoMencionaPoliticaConDiagrama(req.getPrompt());
 
         List<Departamento> activos = departamentoRepository.findByActivoTrue();
 
-        // 1) IA real (si está disponible).
         try {
             List<String> nombres = activos.stream().map(Departamento::getNombre).toList();
             Map<String, Object> flujo = iaProxy.generarFlujo(req.getPrompt(), nombres);
@@ -67,14 +53,11 @@ public class PromptFlowService {
                 return materializarIa(req, creadorId, activos, nodosIa, transIa);
             }
         } catch (RuntimeException e) {
-            // IA no disponible (503 IA_NO_DISPONIBLE) o respuesta inválida → heurística.
         }
 
-        // 2) Heurística determinista (fallback que nunca rompe).
         return generarHeuristico(req, creadorId, activos);
     }
 
-    // ── Materialización del flujo devuelto por la IA ───────────────────────────
     private PromptFlujoResponse materializarIa(PromptFlujoRequest req, String creadorId,
                                                List<Departamento> activos,
                                                List<Map<String, Object>> nodosIa,
@@ -99,7 +82,7 @@ public class PromptFlowService {
                     swimlane = dep.getNombre();
                     swimlanes.add(dep.getNombre());
                 } else {
-                    swimlane = deptNombre;          // nombre tal cual aunque no matchee
+                    swimlane = deptNombre;
                 }
             }
             NodoDiagrama nodo = crearNodo(d.getId(), tipo, nombre, departamentoId, swimlane, orden++);
@@ -128,7 +111,6 @@ public class PromptFlowService {
         return new PromptFlujoResponse(d, nodosCreados, transiciones, req.getPrompt());
     }
 
-    // ── Heurística determinista (fallback) ─────────────────────────────────────
     private PromptFlujoResponse generarHeuristico(PromptFlujoRequest req, String creadorId,
                                                   List<Departamento> todos) {
         String promptLower = req.getPrompt().toLowerCase(Locale.ROOT);
@@ -237,7 +219,6 @@ public class PromptFlowService {
         return new PromptFlujoResponse(d, nodosCreados, transiciones, req.getPrompt());
     }
 
-    // ── helpers ────────────────────────────────────────────────────────────────
     private DiagramaWorkflow nuevoDiagrama(PromptFlujoRequest req, String creadorId) {
         DiagramaWorkflow d = new DiagramaWorkflow();
         d.setNombre(req.getNombreDiagrama());
@@ -250,8 +231,6 @@ public class PromptFlowService {
         d.setUltimaModificacion(LocalDateTime.now());
         DiagramaWorkflow guardado = diagramaRepository.save(d);
 
-        // Backfill 1:1: dejar la política apuntando a este diagrama (igual que la
-        // creación manual) para que el vínculo quede consistente en ambos lados.
         if (req.getPoliticaId() != null && !req.getPoliticaId().isBlank()) {
             politicaRepository.findById(req.getPoliticaId()).ifPresent(p -> {
                 p.setDiagramaId(guardado.getId());
@@ -261,12 +240,6 @@ public class PromptFlowService {
         return guardado;
     }
 
-    /**
-     * Si el prompt menciona el nombre de una política que YA tiene diagrama (no
-     * archivado), lanza error: evita generar un 2º diagrama para ella aunque el
-     * desplegable de política venga vacío. Solo nombres de ≥5 caracteres para no
-     * dar falsos positivos con nombres muy cortos.
-     */
     private void validarPromptNoMencionaPoliticaConDiagrama(String prompt) {
         if (prompt == null || prompt.isBlank()) return;
         String promptNorm = norm(prompt);
@@ -292,7 +265,6 @@ public class PromptFlowService {
         return Math.min(idxNombre, idxCodigo);
     }
 
-    /** Empareja el nombre de departamento de la IA con un departamento real (difuso). */
     private Departamento matchDepartamento(String nombre, List<Departamento> activos) {
         String n = norm(nombre);
         for (Departamento dep : activos) {
@@ -304,7 +276,6 @@ public class PromptFlowService {
         return null;
     }
 
-    /** Actividad REUTILIZABLE del departamento (CU: reuso de componentes); null si no hay. */
     private String actividadReutilizableDe(String departamentoId) {
         if (departamentoId == null) return null;
         List<Actividad> delDepto = actividadRepository.findByDepartamentoId(departamentoId);
@@ -321,7 +292,6 @@ public class PromptFlowService {
         n.setDepartamentoId(departamentoId);
         n.setSwimlane(swimlane);
         n.setOrden(orden);
-        // Reuso de actividades: enlaza una actividad reutilizable del departamento.
         if ("actividad".equals(tipo) && departamentoId != null) {
             n.setActividadId(actividadReutilizableDe(departamentoId));
         }

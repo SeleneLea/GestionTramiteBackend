@@ -139,7 +139,6 @@ public class CampoPlantillaService {
                     "El tipo '" + req.getTipo() + "' no admite lista de opciones");
         }
 
-        // Campo derivado: sin fórmula no hay nada que calcular.
         boolean esCalculado = "calculado".equals(req.getTipo());
         boolean tieneFormula = req.getFormula() != null && !req.getFormula().isBlank();
         if (esCalculado && !tieneFormula) {

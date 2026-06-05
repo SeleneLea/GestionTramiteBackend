@@ -14,9 +14,6 @@ public class TrazabilidadController {
     @Autowired
     private TrazabilidadService trazabilidadService;
 
-    // Verifica la integridad de la cadena de hashes del trámite (tamper-evident).
-    // La autorización a nivel de ruta /api/trazabilidad/** (FUNCIONARIO/ADMINISTRADOR)
-    // ya está definida en SecurityConfig; aquí se reafirma a nivel de método.
     @GetMapping("/{tramiteId}/verificar")
     @PreAuthorize("hasAnyRole('FUNCIONARIO','ADMINISTRADOR')")
     public ResponseEntity<VerificacionCadenaResponse> verificarCadena(@PathVariable String tramiteId) {

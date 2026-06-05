@@ -12,13 +12,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
-/**
- * CU-45 (job) — Diariamente analiza las secuencias de todos los trámites y
- * persiste las anomalías detectadas. Notifica al administrador con un
- * resumen cuando se detectan nuevas.
- *
- * Se puede desactivar con {@code app.scheduler.anomalias.enabled=false}.
- */
 @Service
 @Slf4j
 public class DeteccionAnomaliasScheduler {
@@ -30,7 +23,6 @@ public class DeteccionAnomaliasScheduler {
     @Value("${app.scheduler.anomalias.enabled:true}")
     private boolean enabled;
 
-    /** Cron por defecto: 03:00 todos los días. */
     @Scheduled(cron = "${app.scheduler.anomalias.cron:0 0 3 * * *}")
     public void ejecutar() {
         if (!enabled) return;
@@ -41,7 +33,6 @@ public class DeteccionAnomaliasScheduler {
 
             if (creadas.isEmpty()) return;
 
-            // Resumen para administradores
             String resumen = "Se detectaron " + creadas.size()
                     + " anomalías nuevas en trámites. Revisa el panel de anomalías.";
             for (Usuario admin : usuariosAdmin()) {
@@ -61,7 +52,6 @@ public class DeteccionAnomaliasScheduler {
     }
 
     private List<Usuario> usuariosAdmin() {
-        // Los seed crean tipo="administrador" (en minúscula). Aceptamos ambas variantes.
         return usuarioRepository.findAll().stream()
                 .filter(u -> u.getTipo() != null
                         && ("administrador".equalsIgnoreCase(u.getTipo())

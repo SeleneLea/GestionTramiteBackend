@@ -30,7 +30,6 @@ public class PermisoPuntoAtencionController {
     public ResponseEntity<PermisoPuntoAtencion> upsert(@PathVariable String actividadId,
                                                         @Valid @RequestBody PermisoPuntoAtencionRequest req,
                                                         Authentication auth) {
-        // Forzar coherencia entre path y body
         req.setActividadId(actividadId);
         return ResponseEntity.ok(service.upsert(req, auth.getName()));
     }

@@ -19,9 +19,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
-/**
- * Endpoints de gestión documental (CU-33, CU-34, CU-35).
- */
 @RestController
 @RequestMapping("/api")
 @Tag(name = "Documentos del repositorio",
@@ -31,15 +28,11 @@ public class DocumentoArchivoController {
     @Autowired private DocumentoArchivoService docService;
     @Autowired private VersionadoService versionadoService;
 
-    // ── CU-33 · Subir documento ──────────────────────────────────────────────
-
     @PostMapping(value = "/tramites/{tramiteId}/documentos", consumes = "multipart/form-data")
     @PreAuthorize("hasAnyRole('FUNCIONARIO','ADMINISTRADOR','CLIENTE')")
     @Operation(summary = "Subir documento nuevo (versión 1) al trámite")
     public ResponseEntity<DocumentoArchivoResponse> subir(
             @PathVariable String tramiteId,
-            // Opcional cuando viene nodoId: en paralelo el front no conoce la
-            // actividad y el servicio la resuelve desde el nodo de la rama.
             @RequestParam(required = false) String actividadId,
             @RequestParam(required = false) String documentoRequeridoId,
             @RequestParam(required = false) String corrigeDocumentoId,
@@ -61,8 +54,6 @@ public class DocumentoArchivoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(resp);
     }
 
-    // ── CU-34 · Preview ──────────────────────────────────────────────────────
-
     @GetMapping("/documentos/{id}/preview")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "URL firmada S3 para vista previa")
@@ -75,8 +66,6 @@ public class DocumentoArchivoController {
                 data.urlPreview(), data.mimeType(), data.expiraEn()));
     }
 
-    // ── CU-37 · Descarga (auditada como DESCARGA, no como lectura) ───────────
-
     @GetMapping("/documentos/{id}/descarga")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "URL firmada S3 para descargar el documento (audita DESCARGA)")
@@ -88,9 +77,6 @@ public class DocumentoArchivoController {
         return ResponseEntity.ok(new PreviewDocumentoResponse(
                 data.urlPreview(), data.mimeType(), data.expiraEn()));
     }
-
-    // ── Listados ─────────────────────────────────────────────────────────────
-    // CU-36: para funcionarios se aplican lectura/visibilidad por punto de atención.
 
     @GetMapping("/repositorios/{repositorioId}/documentos")
     @PreAuthorize("isAuthenticated()")
@@ -111,12 +97,6 @@ public class DocumentoArchivoController {
         return ResponseEntity.ok(docService.filtrarVisibles(
                 docService.listarPorTramite(tramiteId, actividadId), rolDe(auth)));
     }
-
-    // NOTA: NO se expone GET /api/documentos/{id} porque colisiona con el
-    // DocumentoController legacy (catálogo de tipos de documento). El detalle
-    // de un DocumentoArchivo se reconstruye desde el preview + listarVersiones.
-
-    // ── CU-35 · Versionado ───────────────────────────────────────────────────
 
     @PostMapping(value = "/documentos/{id}/versiones", consumes = "multipart/form-data")
     @PreAuthorize("hasAnyRole('FUNCIONARIO','ADMINISTRADOR')")
@@ -141,8 +121,6 @@ public class DocumentoArchivoController {
     public ResponseEntity<List<VersionDocumentoResponse>> listarVersiones(@PathVariable String id) {
         return ResponseEntity.ok(versionadoService.listarVersiones(id));
     }
-
-    // ── Helpers ──────────────────────────────────────────────────────────────
 
     private String rolDe(Authentication auth) {
         return auth.getAuthorities().stream()

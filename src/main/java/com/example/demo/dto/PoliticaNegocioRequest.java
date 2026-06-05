@@ -16,6 +16,5 @@ public class PoliticaNegocioRequest {
     private String diagramaId;
     private Map<String, Object> parametros;
 
-    /** Si la política exige adjuntar documento de resolución al aprobar. */
     private boolean requiereDocumentoResolucion;
 }

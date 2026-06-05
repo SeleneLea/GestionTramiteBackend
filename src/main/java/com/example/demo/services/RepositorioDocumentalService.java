@@ -9,28 +9,17 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
-/**
- * CU-32 — Crea y mantiene el repositorio documental asociado a un trámite (1:1).
- *
- * {@link #crearAlIniciarTramite(String, String)} es idempotente y resistente a
- * carrera: si el trámite ya tiene repositorio, devuelve el existente sin crear
- * otro, incluso ante inserciones concurrentes.
- */
 @Service
 @Slf4j
 public class RepositorioDocumentalService {
 
     @Autowired private RepositorioDocumentalRepository repoRepository;
 
-    /**
-     * Crea el repositorio asociado al trámite. Idempotente y resistente a carrera.
-     */
     public RepositorioDocumental crearAlIniciarTramite(String tramiteId, String politicaId) {
         if (politicaId == null || politicaId.isBlank()) {
             throw new IllegalArgumentException("politicaId requerido para crear el repositorio del trámite: " + tramiteId);
         }
 
-        // ¿Ya existe? — devolverlo
         var existente = repoRepository.findByTramiteId(tramiteId);
         if (existente.isPresent()) {
             return existente.get();
@@ -51,7 +40,6 @@ public class RepositorioDocumentalService {
             log.info("[Repositorio] Creado para trámite {} → {}", tramiteId, guardado.getId());
             return guardado;
         } catch (DuplicateKeyException e) {
-            // Carrera: otro hilo lo creó entre el find y el save. Devolver el ganador.
             return repoRepository.findByTramiteId(tramiteId).orElseThrow();
         }
     }
@@ -67,7 +55,6 @@ public class RepositorioDocumentalService {
                         "El trámite no tiene repositorio: " + tramiteId));
     }
 
-    /** Actualiza los totales tras una subida. */
     public void incrementarTotales(String repositorioId, long bytes) {
         repoRepository.findById(repositorioId).ifPresent(r -> {
             r.setTotalArchivos(r.getTotalArchivos() + 1);

@@ -10,11 +10,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 
-/**
- * CU-45 — Anomalía detectada por el modelo IA en el flujo de un trámite.
- *
- * {@code categoria}: tiempo_atipico | secuencia_inusual | loop_derivaciones | salto_no_autorizado.
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

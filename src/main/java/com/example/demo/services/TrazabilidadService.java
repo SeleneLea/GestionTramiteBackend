@@ -35,9 +35,6 @@ public class TrazabilidadService {
         nueva.setAccion(accion);
         nueva.setNodoId(nodoId);
         nueva.setDatosDespues(datosDespues);
-        // Truncar a milisegundos: MongoDB persiste LocalDateTime como BSON Date (ms).
-        // Sin esto, los nanosegundos de now() entran al hash pero se pierden al releer,
-        // y verificarCadena marcaría una traza VÁLIDA como rota.
         nueva.setTimestamp(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS));
         nueva.setHashAnterior(hashAnterior);
 
@@ -46,15 +43,6 @@ public class TrazabilidadService {
         return trazabilidadRepository.save(nueva);
     }
 
-    /**
-     * Verifica la integridad de la cadena de hashes de un trámite recorriendo
-     * los registros en orden ascendente por timestamp. Para cada eslabón:
-     *  - recomputa el hash con el MISMO helper usado al registrar y lo compara
-     *    con el hashActual almacenado (detecta manipulación de los campos);
-     *  - comprueba que su hashAnterior coincide con el hashActual del eslabón
-     *    previo (y que el primero parte del hash génesis de 64 ceros).
-     * Devuelve el primer eslabón roto (si lo hay).
-     */
     public VerificacionCadenaResponse verificarCadena(String tramiteId) {
         List<Trazabilidad> registros = trazabilidadRepository.findByTramiteIdOrderByTimestampAscIdAsc(tramiteId);
 
@@ -74,9 +62,6 @@ public class TrazabilidadService {
         return new VerificacionCadenaResponse(true, null);
     }
 
-    // B6: el hash cubre TODOS los campos materiales (actor, nodo, datos) con
-    // separadores y serialización canónica (claves ordenadas), para que la
-    // cadena sea tamper-evident sobre lo que realmente importa auditar.
     private String construirInputHash(Trazabilidad t) {
         Map<String, Object> datos = t.getDatosDespues();
         String datosCanon = new java.util.TreeMap<>(

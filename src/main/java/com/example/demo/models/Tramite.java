@@ -27,17 +27,13 @@ public class Tramite {
     private String politicaId;
     private String expedienteId;
 
-    /** FK 1:1 al RepositorioDocumental del trámite. */
     private String repositorioId;
 
     @Indexed
     private String estadoActual;
 
-    // Nodo actual para flujos lineales/condicionales/iterativos
     private String nodoActualId;
 
-    // Para flujos paralelos: lista de nodos activos simultáneamente
-    // Vacía en flujos no paralelos. Cuando todos se completen el JOIN puede avanzar.
     private List<String> nodosParalellosActivos = new ArrayList<>();
 
     private String funcionarioActualId;
@@ -48,36 +44,22 @@ public class Tramite {
 
     private int prioridad;
 
-    // === Parte 2 · CU-42 / CU-43 ===
-    /** CU-42 — Ruta de nodos sugerida por la IA. */
     private List<String> rutaSugerida = new ArrayList<>();
 
-    /** CU-43 — Nivel de riesgo de superar el SLA: desconocido | bajo | medio | alto. */
     private String riesgoDemora;
 
-    /** CU-43 — Probabilidad estimada de superar el SLA, 0..1. */
     private Float probSuperarSla;
 
     private LocalDateTime ultimaPrediccionRiesgo;
 
-    /**
-     * Nodos por los que YA se emitió la alerta determinista de SLA VENCIDO
-     * (P1 §7 — distinta del riesgo IA), separados por coma. Evita re-notificar
-     * el mismo nodo en cada corrida del scheduler (en paralelo puede haber
-     * varias ramas vencidas a la vez, por eso es lista y no un único id).
-     */
     private String slaVencidoNotificadoNodoId;
 
-    // === Documento de resolución (lo que el trámite "devuelve" al cliente) ===
-    /** FK al DocumentoArchivo con la resolución entregable. Null si aún no hay. */
     private String documentoResolucionId;
     private LocalDateTime fechaResolucion;
-    /** Tipo/etiqueta de la resolución (ej. "Resolución", "Estado de deudas"). */
+
     private String tipoResolucion;
 
-    // Helper
     public boolean estaEnParalelo() {
         return nodosParalellosActivos != null && !nodosParalellosActivos.isEmpty();
     }
 }
-

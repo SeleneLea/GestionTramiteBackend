@@ -63,11 +63,8 @@ public class TramiteCicloVidaService {
             throw new IllegalArgumentException("El tramite ya se encuentra en un estado final y no puede ser cancelado");
         }
 
-        // Guardar el funcionario antes de limpiar la asignacion.
         String funcionarioAsignadoId = tramite.getFuncionarioActualId();
 
-        // WF-06: cerrar las secciones activas del expediente antes de cancelar,
-        // para que no queden tareas trabajables huerfanas en las bandejas.
         expedienteDigitalRepository.findByTramiteId(tramiteId).ifPresent(expediente -> {
             LocalDateTime ahora = LocalDateTime.now();
             for (SeccionExpediente seccion : seccionExpedienteRepository.findByExpedienteId(expediente.getId())) {
@@ -83,15 +80,12 @@ public class TramiteCicloVidaService {
         tramite.setFuncionarioActualId(null);
         tramite.setNodoActualId(null);
         tramite.setNodosParalellosActivos(List.of());
-        // Cancelar ES un cierre: sin esta fecha el trámite contaría como "activo"
-        // para siempre en dashboard/riesgo (que filtran por fechaCierreReal==null).
         tramite.setFechaCierreReal(LocalDateTime.now());
         tramite = tramiteRepository.save(tramite);
 
         trazabilidadService.registrar(tramiteId, clienteId, "cancelar", null,
                 Map.of("motivo", "Cancelado por el cliente"));
 
-        // CU-19: notificar al funcionario que tenia el tramite asignado.
         if (funcionarioAsignadoId != null) {
             notificacionService.crearNotificacion(
                     funcionarioAsignadoId,
@@ -116,11 +110,9 @@ public class TramiteCicloVidaService {
         response.setTramiteId(tramiteId);
         response.setEstadoActual(tramite.getEstadoActual());
 
-        // WF-11: el trámite finalizado no tiene ningún hito "actual".
         boolean tramiteFinalizado = EstadoTramite.esFinalizado(tramite.getEstadoActual());
         List<String> nodosParalelos = tramite.getNodosParalellosActivos();
 
-        // Caché nodoId -> nombre de departamento para no golpear la BD por cada hito.
         Map<String, String> departamentoPorNodo = new HashMap<>();
 
         List<HitoDTO> hitos = new ArrayList<>();
@@ -142,11 +134,6 @@ public class TramiteCicloVidaService {
         return response;
     }
 
-    /**
-     * WF-11: resuelve el nombre real del departamento asociado a un nodo del flujo
-     * (nodoNuevoId → nodo → departamentoId → departamento.getNombre()), usando un
-     * caché por nodo para evitar consultas repetidas dentro de la misma línea de tiempo.
-     */
     private String resolverDepartamento(String nodoId, Map<String, String> cache) {
         if (nodoId == null) {
             return "Departamento Asociado";

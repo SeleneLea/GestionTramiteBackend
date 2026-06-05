@@ -18,12 +18,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-/**
- * P1 §7 — Los FUNCIONARIOS invitados como colaboradores 'editor' (invitación
- * aceptada) también pueden mutar el lienzo: el rol abre la puerta HTTP y
- * {@link ColaboracionService#validarEditorDelDiagrama} hace el control fino
- * (creador o editor aceptado). Los administradores pasan siempre.
- */
 @RestController
 @RequestMapping("/api")
 @Tag(name = "Nodos del Diagrama", description = "CU-13: agregar/editar/eliminar nodos del lienzo")
@@ -93,7 +87,6 @@ public class NodoDiagramaController {
     @DeleteMapping("/nodos/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRADOR','FUNCIONARIO')")
     public ResponseEntity<Void> eliminar(@PathVariable String id, Authentication auth) {
-        // Resolvemos el diagramaId ANTES de borrar para poder informar a los demás colaboradores.
         String diagramaId = nodoService.buscarPorId(id)
                 .map(NodoDiagrama::getDiagramaId)
                 .orElse(null);
@@ -107,8 +100,6 @@ public class NodoDiagramaController {
         }
         return ResponseEntity.noContent().build();
     }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
 
     private void validarEdicionDeNodo(String nodoId, Authentication auth) {
         nodoService.buscarPorId(nodoId)

@@ -22,7 +22,6 @@ public class DocumentoArchivoResponse {
     private String autorId;
     private LocalDateTime fechaCreacion;
 
-    /** URL firmada S3 — válida hasta {@link #expiraEn}. */
     private String urlPreview;
     private Instant expiraEn;
 }

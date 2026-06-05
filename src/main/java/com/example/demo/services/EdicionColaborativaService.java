@@ -27,18 +27,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-/**
- * CU-38 — Orquesta las sesiones de edición colaborativa.
- *
- * Responsabilidades:
- *  - validar permisos al unirse (RN-P01, RN-E04),
- *  - mantener el roster en {@link SesionEdicionDocumento},
- *  - retransmitir operaciones a los demás participantes,
- *  - registrar auditoría resumida (un evento al JOIN y al LEAVE — RN-A01).
- *
- * No mantiene el estado del documento; eso vive en el cliente (Yjs).
- * Los snapshots se hacen vía REST CU-35 ({@code POST /api/documentos/{id}/versiones}).
- */
 @Service
 @Slf4j
 public class EdicionColaborativaService {
@@ -54,19 +42,12 @@ public class EdicionColaborativaService {
     @Value("${app.documental.edicion-colaborativa.max-participantes:10}")
     private int maxParticipantes;
 
-    /** Paleta para asignar color de cursor a cada participante. */
     private static final String[] COLORES = {
             "#ef4444", "#3b82f6", "#10b981", "#f59e0b",
             "#a855f7", "#06b6d4", "#ec4899", "#84cc16",
             "#f97316", "#6366f1"
     };
 
-    // ── join ─────────────────────────────────────────────────────────────────
-
-    /**
-     * Un usuario se une a la sesión de edición de un documento.
-     * Si no tiene permiso de edición, se le notifica un KICK y no entra al roster.
-     */
     public void unirse(String documentoId, String usuarioId, String rol) {
         DocumentoArchivo doc = docRepo.findById(documentoId).orElse(null);
         if (doc == null) {
@@ -83,13 +64,8 @@ public class EdicionColaborativaService {
 
         SesionEdicionDocumento base = upsertSesion(documentoId, doc.getNumeroVersionActual());
 
-        // El aforo (RN-E04) se re-evalúa DENTRO de la mutación reaplicada en cada
-        // reintento: un conflicto de versión puede traer una lectura fresca ya llena,
-        // así que comprobar sobre `base` no basta. Si se excede, no se añade y se marca
-        // el kick para emitirlo tras la persistencia.
         boolean[] aforoExcedido = { false };
 
-        // Añadir o actualizar participante (read-modify-write tolerante a concurrencia)
         SesionEdicionDocumento sesion = guardarConReintento(documentoId, base, s -> {
             aforoExcedido[0] = false;
             Optional<SesionEdicionDocumento.Participante> existente = s.getParticipantes().stream()
@@ -99,7 +75,6 @@ public class EdicionColaborativaService {
             if (existente.isPresent()) {
                 existente.get().setUltimoLatido(LocalDateTime.now());
             } else if (s.getParticipantes().size() >= maxParticipantes) {
-                // Aforo lleno en la lectura vigente: no se incorpora al roster.
                 aforoExcedido[0] = true;
             } else {
                 s.getParticipantes().add(new SesionEdicionDocumento.Participante(
@@ -112,7 +87,6 @@ public class EdicionColaborativaService {
             s.setUltimoLatido(LocalDateTime.now());
         });
         if (sesion == null) {
-            // La sesión desapareció (purga concurrente); nada que retransmitir.
             log.warn("[CU-38] sesión de doc={} no disponible al unir a {}", documentoId, usuarioId);
             return;
         }
@@ -122,7 +96,6 @@ public class EdicionColaborativaService {
             return;
         }
 
-        // Auditoría — un solo evento por sesión (no por op)
         auditoria.registrar(documentoId, doc.getVersionActualId(), usuarioId, rol,
                 AuditoriaDocumentoService.EDICION_EN_VIVO, null, null,
                 Map.of("accion", "join"));
@@ -130,8 +103,6 @@ public class EdicionColaborativaService {
         broadcaster.presencia(documentoId, "roster",
                 Map.of("participantes", sesion.getParticipantes()), usuarioId);
 
-        // SNAPSHOT al unirse: el recién llegado recibe el contenido VIVO de la
-        // sesión (lo que los demás ya escribieron) en vez de un editor vacío.
         broadcaster.edicion(documentoId, "snapshot",
                 Map.of("contenido", sesion.getContenido() != null ? sesion.getContenido() : ""),
                 usuarioId);
@@ -140,14 +111,10 @@ public class EdicionColaborativaService {
                 usuarioId, documentoId, sesion.getParticipantes().size());
     }
 
-    // ── leave ────────────────────────────────────────────────────────────────
-
     public void salir(String documentoId, String usuarioId, String rol) {
         SesionEdicionDocumento inicial = sesionRepo.findByDocumentoArchivoId(documentoId).orElse(null);
         if (inicial == null) return;
 
-        // Quitar del roster (read-modify-write tolerante a concurrencia). Si queda vacía,
-        // se elimina; si no, se persiste. Ambas vías reintentan ante conflicto de versión.
         SesionEdicionDocumento sesion = removerConReintento(documentoId, inicial, usuarioId);
 
         DocumentoArchivo doc = docRepo.findById(documentoId).orElse(null);
@@ -167,25 +134,16 @@ public class EdicionColaborativaService {
         log.info("[CU-38] {} salió de doc={}", usuarioId, documentoId);
     }
 
-    // ── op (operación CRDT) ──────────────────────────────────────────────────
-
     public void aplicarOp(String documentoId, String usuarioId, String rol, Object op) {
         DocumentoArchivo doc = docRepo.findById(documentoId).orElse(null);
         if (doc == null) return;
 
-        // Re-verificar permiso (puede haber cambiado en caliente)
         if (!puedeEditar(doc, rol)) {
             broadcaster.presencia(documentoId, "kick",
                     Map.of("motivo", "permiso_revocado"), usuarioId);
             return;
         }
 
-        // Latido implícito al enviar una op (read-modify-write tolerante a concurrencia).
-        // El canal STOMP no tiene GlobalExceptionHandler: si tras los reintentos persiste
-        // el conflicto de versión, se degrada a no-op (el latido es best-effort y la op se
-        // retransmite igualmente) en vez de propagar la excepción al socket.
-        // Contenido autoritativo: si la op es un replace de texto, el servidor
-        // conserva el estado para los snapshots de quienes se unan después.
         String contenidoNuevo = contenidoDe(op);
         try {
             sesionRepo.findByDocumentoArchivoId(documentoId).ifPresent(base ->
@@ -204,18 +162,10 @@ public class EdicionColaborativaService {
             log.debug("[CU-38] latido de op no persistido en doc={} por conflicto de versión", documentoId);
         }
 
-        // Retransmisión a los demás participantes.
         broadcaster.edicion(documentoId, "op", op, usuarioId);
     }
 
-    // ── cursor ───────────────────────────────────────────────────────────────
-
     public void actualizarCursor(String documentoId, String usuarioId, Object payload) {
-        // Evento de altísima frecuencia: NO se hace save() con @Version por cada cursor
-        // (provocaría conflictos de versión y contención constantes). Se persiste el latido
-        // del participante con una actualización parcial SIN versionado vía MongoTemplate,
-        // usando el operador posicional `$` para tocar solo el participante emisor.
-        // Si no hay sesión/participante coincidente, updateFirst no afecta a nada (no-op).
         Update update = new Update().set("participantes.$.ultimoLatido", LocalDateTime.now());
         if (payload instanceof Map<?, ?> m && m.get("cursorPos") instanceof Number n) {
             update.set("participantes.$.cursorPos", n.intValue());
@@ -229,23 +179,10 @@ public class EdicionColaborativaService {
         broadcaster.presencia(documentoId, "cursor", payload, usuarioId);
     }
 
-    // ── purga (llamada desde scheduler) ──────────────────────────────────────
-
-    /**
-     * Purga participantes cuyo latido sea más antiguo que el TTL configurado y
-     * elimina sesiones vacías. Emite roster actualizado si hubo cambios.
-     */
     public int purgar(Duration ttl) {
         LocalDateTime corte = LocalDateTime.now().minus(ttl);
         int afectadas = 0;
 
-        // Dos criterios complementarios, deduplicados por id:
-        //  (a) latido del PARTICIPANTE vencido: captura sesiones aún "vivas"
-        //      (alguien activo mantiene el latido de la sesión fresco) que
-        //      arrastran participantes caducados, para podarlos sin borrar la sesión.
-        //  (b) latido de la SESIÓN vencido: captura sesiones totalmente inactivas
-        //      y las huérfanas/vacías (participantes=[]), que el criterio (a) no
-        //      puede ver porque no tienen ningún subdocumento que casar.
         Map<String, SesionEdicionDocumento> candidatas = new LinkedHashMap<>();
         for (SesionEdicionDocumento s : sesionRepo.findByParticipantes_UltimoLatidoBefore(corte)) {
             candidatas.put(s.getId(), s);
@@ -255,9 +192,6 @@ public class EdicionColaborativaService {
         }
 
         for (SesionEdicionDocumento s : candidatas.values()) {
-            // Cada sesión se aísla: un conflicto de versión (edición concurrente que
-            // tocó la sesión entre la lectura del lote y este delete/save) no debe
-            // abortar el resto de la purga. Se registra en debug y se continúa.
             try {
                 int antes = s.getParticipantes().size();
                 s.getParticipantes().removeIf(p ->
@@ -284,21 +218,8 @@ public class EdicionColaborativaService {
         return afectadas;
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
-
-    /** Número máximo de intentos ante conflicto de versión (RN-C01). */
     private static final int MAX_INTENTOS_CONCURRENCIA = 3;
 
-    /**
-     * Aplica una mutación sobre la sesión y la persiste tolerando concurrencia.
-     * Ante {@link OptimisticLockingFailureException} relee la sesión por documento
-     * y reaplica la mutación, hasta {@value #MAX_INTENTOS_CONCURRENCIA} intentos.
-     *
-     * @param documentoId clave para releer la sesión tras un conflicto.
-     * @param base        sesión recién leída sobre la que se intenta primero.
-     * @param mutacion    cambio idempotente a aplicar antes de guardar.
-     * @return la sesión persistida, o {@code null} si dejó de existir (p. ej. purga concurrente).
-     */
     private SesionEdicionDocumento guardarConReintento(
             String documentoId, SesionEdicionDocumento base, Consumer<SesionEdicionDocumento> mutacion) {
         SesionEdicionDocumento sesion = base;
@@ -318,17 +239,12 @@ public class EdicionColaborativaService {
                             documentoId, MAX_INTENTOS_CONCURRENCIA);
                     throw conflicto;
                 }
-                sesion = fresca; // releer y reaplicar la mutación
+                sesion = fresca;
             }
         }
         return sesion;
     }
 
-    /**
-     * Quita un participante del roster tolerando concurrencia. Si la sesión queda
-     * vacía se elimina (devolviendo {@code null}); en caso contrario se persiste.
-     * Reintenta ante conflicto de versión releyendo por documento.
-     */
     private SesionEdicionDocumento removerConReintento(
             String documentoId, SesionEdicionDocumento base, String usuarioId) {
         SesionEdicionDocumento sesion = base;
@@ -345,7 +261,6 @@ public class EdicionColaborativaService {
                 SesionEdicionDocumento fresca =
                         sesionRepo.findByDocumentoArchivoId(documentoId).orElse(null);
                 if (fresca == null) {
-                    // Otro proceso ya la eliminó: el participante quedó fuera igualmente.
                     return null;
                 }
                 if (intento == MAX_INTENTOS_CONCURRENCIA) {
@@ -353,13 +268,12 @@ public class EdicionColaborativaService {
                             documentoId, MAX_INTENTOS_CONCURRENCIA);
                     throw conflicto;
                 }
-                sesion = fresca; // releer y reaplicar la remoción
+                sesion = fresca;
             }
         }
         return sesion;
     }
 
-    /** Extrae el contenido de una op {tipo:'replace', contenido}; null si no aplica. */
     private String contenidoDe(Object op) {
         if (op instanceof Map<?, ?> m
                 && "replace".equals(String.valueOf(m.get("tipo")))
@@ -370,11 +284,9 @@ public class EdicionColaborativaService {
     }
 
     private boolean puedeEditar(DocumentoArchivo doc, String rol) {
-        // Admins editan siempre (super-permiso, RN-P03)
         if (rol != null && rol.contains("ADMINISTRADOR")) return true;
 
         if (doc.getActividadId() == null || doc.getPoliticaId() == null) {
-            // Sin actividad configurada → default SOLO_LECTURA (RN-P01)
             return false;
         }
         PermisoPuntoAtencion permiso = permisoService.buscarOPorDefecto(
@@ -396,7 +308,6 @@ public class EdicionColaborativaService {
         try {
             return sesionRepo.save(s);
         } catch (DuplicateKeyException race) {
-            // Otro JOIN concurrente la creó primero — releerla
             return sesionRepo.findByDocumentoArchivoId(documentoId)
                     .orElseThrow(() -> race);
         }
@@ -418,7 +329,6 @@ public class EdicionColaborativaService {
         return COLORES[Math.floorMod(indice, COLORES.length)];
     }
 
-    /** Listar participantes actuales (consumido por un endpoint REST opcional). */
     public List<SesionEdicionDocumento.Participante> participantes(String documentoId) {
         return sesionRepo.findByDocumentoArchivoId(documentoId)
                 .map(SesionEdicionDocumento::getParticipantes)

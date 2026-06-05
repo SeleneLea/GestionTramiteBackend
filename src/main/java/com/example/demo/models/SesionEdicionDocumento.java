@@ -11,10 +11,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * CU-38 — Sesión activa de edición colaborativa sobre un documento.
- * Una por documento abierto. Se purga tras N minutos sin latido.
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -24,7 +20,6 @@ public class SesionEdicionDocumento {
     @Id
     private String id;
 
-    /** Versión optimista (RN-C01) — evita last-write-wins en el roster concurrente. */
     @org.springframework.data.annotation.Version
     private Long version;
 
@@ -39,11 +34,6 @@ public class SesionEdicionDocumento {
     private int versionBase;
     private int cambiosPendientes;
 
-    /**
-     * Contenido VIVO de la sesión (texto colaborativo). El servidor lo guarda en
-     * cada op para que quien se une reciba un snapshot con el estado actual (y no
-     * un editor vacío). Se persiste como nueva versión del documento vía CU-35.
-     */
     private String contenido;
 
     @Data

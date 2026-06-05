@@ -13,16 +13,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-/**
- * Integración IA del expediente (CU-30 transcripción de voz) y del asistente
- * (CU-31).
- *
- * <p>UNIFICADO contra el microservicio FastAPI real: ya NO existen las dos rutas
- * legadas/muertas ({@code 8001/api/transcribir}, {@code 8002/api/chat} de n8n).
- * La transcripción va por {@link IaProxyService} (mismo micro que el resto de la
- * IA) y el asistente usa directamente {@link AgenteAsistenciaService}, que es el
- * CU-31 híbrido (clasificador TensorFlow + LLM + base de conocimiento local).
- */
 @Service
 public class AiIntegrationService {
 
@@ -31,12 +21,6 @@ public class AiIntegrationService {
     @Autowired private AgenteAsistenciaService agenteKb;
     @Autowired private IaProxyService iaProxy;
 
-    /**
-     * Transcribe el audio dictado (CU-30) vía el microservicio real
-     * ({@code /nlp/voz-a-formulario} con schema vacío, del que solo se usa
-     * {@code texto_transcrito}). Si el micro cae, el proxy lanza
-     * {@code 503 IA_NO_DISPONIBLE} y no se persiste nada inválido.
-     */
     public TranscripcionVoz transcribirAudio(String seccionId, MultipartFile archivo, String funcionarioId) {
         Map<String, Object> resp = iaProxy.vozAFormulario(archivo, "[]");
         Object textoObj = resp.get("texto_transcrito");
@@ -52,10 +36,6 @@ public class AiIntegrationService {
         return vozRepo.save(tv);
     }
 
-    /**
-     * Responde al asistente conversacional (CU-31) con el motor híbrido
-     * (TensorFlow + LLM + KB local) y registra la interacción en el log.
-     */
     public AgenteResponse consultarAgente(AgenteRequest input, String usuarioId, String rolId) {
         long start = System.currentTimeMillis();
         AgenteResponse resp = agenteKb.responderInteligente(input, rolId);

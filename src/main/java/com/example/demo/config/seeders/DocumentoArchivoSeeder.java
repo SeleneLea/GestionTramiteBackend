@@ -29,17 +29,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Parte 2 — Documentos de PRUEBA en el repositorio: sube un PDF por cada requisito
- * OBLIGATORIO del CLIENTE de las actividades de los primeros trámites, para que el
- * repositorio no esté vacío y "Ver" funcione. Requiere S3 (aws.enabled) + trámites +
- * actividades + repositorios sembrados. Idempotente (se omite si ya hay documentos).
- *
- * <p>Siembra los documentos según el PROGRESO real de cada trámite: por cada actividad
- * que ya alcanzó (sección no Bloqueada ni Pendiente-de-documentos) siembra los requisitos
- * del cliente, deduplicando por trámite (no-redundancia). Así un trámite avanzado/aprobado
- * tiene su repositorio acorde, y el de compuerta (008) queda sin documentos.
- */
 @Component
 @Slf4j
 public class DocumentoArchivoSeeder {
@@ -67,11 +56,7 @@ public class DocumentoArchivoSeeder {
         }
 
         int creados = 0;
-        // Sembrar según el PROGRESO real: por cada actividad que el trámite YA ALCANZÓ
-        // (sección no Bloqueada ni Pendiente-de-documentos), sembrar los requisitos del
-        // cliente, deduplicando por trámite (no-redundancia: un documento por requisito).
-        // Así un trámite avanzado/aprobado tiene su repositorio acorde; el de compuerta
-        // (ATC en "Pendiente de documentos") queda sin documentos automáticamente.
+
         for (Tramite t : tramiteRepo.findAll()) {
             if (t.getExpedienteId() == null) continue;
             Set<String> yaSembrados = new HashSet<>();
@@ -99,9 +84,6 @@ public class DocumentoArchivoSeeder {
         }
         log.info("[Seeder] DocumentoArchivo OK ({} documentos segun progreso)", creados);
 
-        // Regla "observar requiere ≥1 documento": cada sección OBSERVADO debe tener
-        // documentosObservados. Marcamos un documento EXISTENTE de su actividad (o sembramos
-        // uno si no hubiera), así el cliente ve qué corregir (no "aún no hay documentos").
         int marcados = 0;
         for (Tramite t : tramiteRepo.findAll()) {
             if (t.getExpedienteId() == null) continue;
@@ -139,7 +121,6 @@ public class DocumentoArchivoSeeder {
         log.info("[Seeder] Secciones OBSERVADO marcadas: {}", marcados);
     }
 
-    /** PDF mínimo de prueba con texto; único por (nombre, código) para no chocar con el anti-duplicado por hash. */
     private byte[] pdfPrueba(String nombre, String codigo) {
         String txt = sanitizar(nombre);
         String pdf = "%PDF-1.4\n"

@@ -40,7 +40,6 @@ public class VersionSeeder {
                 .ifPresent(politica -> {
                     String diagramaId = politica.getDiagramaId();
 
-                    // Version 1 de la politica (version inicial)
                     if (!versionPoliticaRepository.existsByPoliticaIdAndNumeroVersion(politica.getId(), 1)) {
                         VersionPolitica vp1 = new VersionPolitica();
                         vp1.setPoliticaId(politica.getId());
@@ -52,7 +51,6 @@ public class VersionSeeder {
                         versionPoliticaRepository.save(vp1);
                     }
 
-                    // Version 2 de la politica (ajuste en SLA legal)
                     if (!versionPoliticaRepository.existsByPoliticaIdAndNumeroVersion(politica.getId(), 2)) {
                         VersionPolitica vp2 = new VersionPolitica();
                         vp2.setPoliticaId(politica.getId());
@@ -64,7 +62,6 @@ public class VersionSeeder {
                         versionPoliticaRepository.save(vp2);
                     }
 
-                    // Version 1 del diagrama
                     if (diagramaId != null && !versionDiagramaRepository.existsByDiagramaIdAndNumeroVersion(diagramaId, 1)) {
                         VersionDiagrama vd1 = new VersionDiagrama();
                         vd1.setDiagramaId(diagramaId);

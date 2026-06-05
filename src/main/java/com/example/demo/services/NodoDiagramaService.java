@@ -89,12 +89,6 @@ public class NodoDiagramaService {
         return nodoRepository.save(n);
     }
 
-    /**
-     * Actualización PARCIAL (PATCH): solo sobrescribe los campos presentes (no
-     * nulos), conservando el resto. Para los cambios incrementales del editor
-     * (p.ej. arrastrar un nodo envía solo {@code posicion}) sin tener que mandar
-     * el nodo completo. Misma guarda de estado 'borrador' que {@link #actualizar}.
-     */
     public NodoDiagrama actualizarParcial(String id, com.example.demo.dto.NodoDiagramaPatchRequest req) {
         NodoDiagrama n = nodoRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Nodo no encontrado"));

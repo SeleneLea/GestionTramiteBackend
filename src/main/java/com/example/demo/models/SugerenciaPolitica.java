@@ -12,12 +12,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * CU-40 — Histórico de sugerencias de política dadas por la IA al cliente.
- * Sirve además como dataset de feedback para reentrenar el clasificador.
- *
- * {@code feedback}: ACEPTADA | CAMBIADA | CANCELADA.
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

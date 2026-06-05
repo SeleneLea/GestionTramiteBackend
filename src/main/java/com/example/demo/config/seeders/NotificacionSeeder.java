@@ -43,7 +43,6 @@ public class NotificacionSeeder {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // --- Tramite 001 COMPLETADO ---
         notif(clienteId, trm001, "EMAIL", "INFO",
                 "Tramite TRM-2024-001 completado",
                 "Su solicitud de nueva conexion electrica ha sido procesada y aprobada. El medidor fue instalado correctamente.",
@@ -53,7 +52,6 @@ public class NotificacionSeeder {
                 "El tecnico Roberto Vargas ha completado la instalacion. Numero de medidor: MED20240421.",
                 true, "ENVIADO", 1, now.minusDays(5), now.minusDays(4));
 
-        // --- Tramite 002 RECHAZADO ---
         notif(clienteId, trm002, "EMAIL", "ALERTA",
                 "Tramite TRM-2024-002 rechazado",
                 "Su tramite ha sido rechazado. Motivo: documentacion insuficiente. Por favor, presente CI y plano actualizado.",
@@ -63,7 +61,6 @@ public class NotificacionSeeder {
                 "TRM-2024-002 rechazado. Revise su correo para mas detalles.",
                 true, "ENVIADO", 1, now.minusDays(10), now.minusDays(9));
 
-        // --- Tramite 003 EN PROCESO ---
         notif(cliente2Id, trm003, "IN_APP", "ACCION_REQUERIDA",
                 "Inspeccion tecnica programada",
                 "El tecnico Carlos Lima visitara su domicilio el dia de manana para realizar la inspeccion tecnica.",
@@ -73,7 +70,6 @@ public class NotificacionSeeder {
                 "Recuerde completar el formulario de inspeccion y subir las fotos del sitio.",
                 false, "ENVIADO", 1, now.minusDays(1), null);
 
-        // --- Tramite 004 INICIADO ---
         notif(cliente3Id, trm004, "EMAIL", "INFO",
                 "Tramite TRM-2024-004 recibido",
                 "Hemos recibido su solicitud de nueva conexion electrica. En breve un funcionario revisara su documentacion.",
@@ -83,7 +79,6 @@ public class NotificacionSeeder {
                 "Se le ha asignado el tramite TRM-2024-004 de Rosa Flores. Por favor revise la documentacion.",
                 false, "ENVIADO", 1, now, null);
 
-        // --- Tramite 005 OBSERVADO ---
         notif(cliente2Id, trm005, "EMAIL", "ALERTA",
                 "Observaciones en su tramite TRM-2024-005",
                 "El area legal ha registrado observaciones en el contrato de su tramite. Por favor, contacte a la oficina.",
@@ -93,13 +88,11 @@ public class NotificacionSeeder {
                 "El tramite TRM-2024-005 tiene observaciones sin resolver. Requiere firma notarial del solicitante.",
                 false, "ENVIADO", 1, now.minusDays(7), null);
 
-        // --- Tramite 006 CANCELADO ---
         notif(cliente3Id, trm006, "EMAIL", "INFO",
                 "Tramite TRM-2024-006 cancelado",
                 "Su tramite ha sido cancelado segun su solicitud. Si desea reiniciar el proceso puede hacerlo en cualquier momento.",
                 true, "ENVIADO", 1, now.minusDays(18), now.minusDays(17));
 
-        // --- Notificacion con envio FALLIDO (para probar el estado) ---
         notif(cliente2Id, trm003, "SMS", "RECORDATORIO",
                 "Actualizacion de su tramite",
                 "Su tramite TRM-2024-003 avanza correctamente. Lo mantendemos informado.",

@@ -15,11 +15,5 @@ public interface SesionEdicionDocumentoRepository extends MongoRepository<Sesion
 
     List<SesionEdicionDocumento> findByUltimoLatidoBefore(LocalDateTime instante);
 
-    /**
-     * Sesiones con al menos un participante cuyo latido es anterior al corte.
-     * El path embebido se traduce a {@code {"participantes.ultimoLatido": {"$lt": instante}}},
-     * de modo que se capturan también las sesiones aún "vivas" (con alguien activo)
-     * que arrastran participantes obsoletos.
-     */
     List<SesionEdicionDocumento> findByParticipantes_UltimoLatidoBefore(LocalDateTime instante);
 }

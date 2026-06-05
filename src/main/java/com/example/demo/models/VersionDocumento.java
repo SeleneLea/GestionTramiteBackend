@@ -12,9 +12,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * CU-35 — Versión inmutable de un DocumentoArchivo. El binario vive en S3.
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

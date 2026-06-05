@@ -15,16 +15,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * CU-43 (job) — Recalcula el riesgo de demora de todos los trámites activos
- * periódicamente y notifica al funcionario+admin cuando un trámite pasa a
- * nivel "alto" (sin duplicar la notificación si ya estaba en alto).
- *
- * Si el microservicio IA está caído, el job degrada limpiamente: cada trámite
- * conserva su {@code riesgoDemora} anterior y se loguea un warning.
- *
- * El job se puede desactivar con {@code app.scheduler.riesgo.enabled=false}.
- */
 @Service
 @Slf4j
 public class PrediccionRiesgoScheduler {
@@ -37,10 +27,6 @@ public class PrediccionRiesgoScheduler {
     @Value("${app.scheduler.riesgo.enabled:true}")
     private boolean enabled;
 
-    /**
-     * Cada 15 min (cron: segundo, minuto, hora, día, mes, día-semana).
-     * Configurable vía {@code app.scheduler.riesgo.cron}.
-     */
     @Scheduled(cron = "${app.scheduler.riesgo.cron:0 */15 * * * *}")
     public void ejecutar() {
         if (!enabled) return;
@@ -55,22 +41,14 @@ public class PrediccionRiesgoScheduler {
                 }
             }
         } catch (ResponseStatusException ex) {
-            // Microservicio IA caído — log y continuar
             log.warn("[CU-43 job] IA no disponible, omitiendo recálculo: {}", ex.getReason());
         } catch (Exception ex) {
             log.error("[CU-43 job] Error inesperado: {}", ex.getMessage(), ex);
         }
     }
 
-    /**
-     * Notifica al funcionario actual + admin si y solo si el trámite pasó a
-     * "alto" en esta ronda (transición). Si ya estaba en alto y no había
-     * notificación abierta sin leer, también se notifica (cubre el caso de
-     * arranque fresco con datos pre-existentes).
-     */
     private void notificarRiesgoAltoSiCambio(TramiteRiesgoResponse r) {
         tramiteRepository.findById(r.getTramiteId()).ifPresent(t -> {
-            // RN-RS02 — si ya hay notificación de riesgo abierta no se duplica.
             boolean yaNotificado = notificacionRepository
                     .findByDestinatarioIdOrderByFechaCreacionDesc(t.getFuncionarioActualId() != null
                             ? t.getFuncionarioActualId() : "")
@@ -99,7 +77,6 @@ public class PrediccionRiesgoScheduler {
         });
     }
 
-    /** Solo para tests / disparo manual desde un endpoint admin si se quiere. */
     public int ejecutarManual() {
         if (!enabled) return 0;
         try {

@@ -44,91 +44,71 @@ public class TramiteSeeder {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // ─────────── cliente@cre.bo (8 tramites, todas las etapas) ───────────
-
-        // TRM-2024-001: COMPLETADO — aprobado e instalado (cerrado hace 5 dias)
         crear("TRM-2024-001", clienteId, politicaId, "Aprobado",
                 nFin, funcOpeId, 2,
                 now.minusDays(30), now.minusDays(5), now.minusDays(5),
                 new ArrayList<>());
 
-        // TRM-2024-002: RECHAZADO — contrato rechazado en decision (hace 10 dias)
         crear("TRM-2024-002", clienteId, politicaId, "Rechazado",
                 null, null, 3,
                 now.minusDays(25), now.minusDays(18), now.minusDays(10),
                 new ArrayList<>());
 
-        // TRM-2024-008: INICIADO — recien creado, en ATC verificando documentos
         crear("TRM-2024-008", clienteId, politicaId, "En curso",
                 nAtcVer, funcAtcId, 1,
                 now.minusHours(6), now.plusDays(10), null,
                 new ArrayList<>());
 
-        // TRM-2024-009: EN PROCESO — TEC paralelo (inspeccion + presupuesto)
         crear("TRM-2024-009", clienteId, politicaId, "En curso",
                 null, funcTecId, 2,
                 now.minusDays(4), now.plusDays(6), null,
                 List.of(nTecInsp, nTecPres));
 
-        // TRM-2024-010: EN PROCESO — listo para que LEG apruebe (post-join)
         crear("TRM-2024-010", clienteId, politicaId, "En curso",
                 nLegContr, funcLegId, 2,
                 now.minusDays(9), now.plusDays(5), null,
                 new ArrayList<>());
 
-        // TRM-2024-011: OBSERVADO — observaciones en revision de contrato
         crear("TRM-2024-011", clienteId, politicaId, "Observado",
                 nLegContr, funcLegId, 3,
                 now.minusDays(14), now.minusDays(2), null,
                 new ArrayList<>());
 
-        // TRM-2024-012: EN PROCESO — aprobado en decision, en OPE ejecutando cierre
         crear("TRM-2024-012", clienteId, politicaId, "En curso",
                 nOpeCierre, funcOpeId, 2,
                 now.minusDays(20), now.plusDays(2), null,
                 new ArrayList<>());
 
-        // TRM-2024-013: CANCELADO — cancelado por el cliente en etapa inicial
         crear("TRM-2024-013", clienteId, politicaId, "Cancelado",
                 null, null, 1,
                 now.minusDays(17), now.minusDays(15), now.minusDays(15),
                 new ArrayList<>());
 
-        // ─────────── cliente2@cre.bo (3 tramites) ───────────
-
-        // TRM-2024-003: EN PROCESO — en TEC inspeccion (paralelo)
         crear("TRM-2024-003", cliente2Id, politicaId, "En curso",
                 null, funcTecId, 2,
                 now.minusDays(10), now.plusDays(5), null,
                 List.of(nTecInsp, nTecPres));
 
-        // TRM-2024-005: OBSERVADO — con observaciones en revision de contrato
         crear("TRM-2024-005", cliente2Id, politicaId, "Observado",
                 nLegContr, funcLegId, 3,
                 now.minusDays(15), now.minusDays(5), null,
                 new ArrayList<>());
 
-        // TRM-2024-007: EN PROCESO — listo para que LEG apruebe
         crear("TRM-2024-007", cliente2Id, politicaId, "En curso",
                 nLegContr, funcLegId, 2,
                 now.minusDays(12), now.plusDays(8), null,
                 new ArrayList<>());
 
-        // ─────────── cliente3@cre.bo (3 tramites) ───────────
-
-        // TRM-2024-004: INICIADO — recien iniciado
         crear("TRM-2024-004", cliente3Id, politicaId, "En curso",
                 nAtcVer, funcAtcId, 1,
                 now.minusDays(1), now.plusDays(10), null,
                 new ArrayList<>());
 
-        // TRM-2024-006: CANCELADO — cancelado por el cliente
         crear("TRM-2024-006", cliente3Id, politicaId, "Cancelado",
                 null, null, 1,
                 now.minusDays(20), now.minusDays(18), now.minusDays(18),
                 new ArrayList<>());
 
-        // TRM-2024-014: COMPLETADO — instalado hace 2 meses
         crear("TRM-2024-014", cliente3Id, politicaId, "Aprobado",
                 nFin, funcOpeId, 2,
                 now.minusDays(60), now.minusDays(35), now.minusDays(35),

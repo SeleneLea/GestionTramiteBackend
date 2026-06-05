@@ -20,21 +20,6 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import java.util.List;
 import java.util.Map;
 
-/**
- * CU-38 — Endpoint STOMP de edición colaborativa de documentos.
- *
- * Rutas (todas debajo del endpoint WS {@code /ws}):
- *   /app/documento/{id}/join    — anuncia entrada
- *   /app/documento/{id}/leave   — anuncia salida
- *   /app/documento/{id}/op      — operación CRDT del cliente
- *   /app/documento/{id}/cursor  — posición del cursor (alta frecuencia)
- *
- * El usuarioId se toma de los atributos de sesión WebSocket — los rellena el
- * {@code JwtHandshakeInterceptor} en {@link com.example.demo.config.WebSocketConfig}.
- *
- * Además expone {@code GET /api/documentos/{id}/sesion-edicion} para que
- * Angular pueda consultar el roster actual sin abrir el WS.
- */
 @Controller
 @RequestMapping
 @Tag(name = "Edición colaborativa de documentos",
@@ -44,13 +29,11 @@ public class DocumentoCollabController {
     @Autowired
     private EdicionColaborativaService service;
 
-    // ── STOMP @MessageMapping ────────────────────────────────────────────────
-
     @MessageMapping("/documento/{id}/join")
     public void join(@DestinationVariable("id") String documentoId,
                      SimpMessageHeaderAccessor headers) {
         Ctx ctx = ctx(headers);
-        if (ctx == null) return;   // sin auth en la sesión WS — ignorar
+        if (ctx == null) return;
         service.unirse(documentoId, ctx.userId, ctx.rol);
     }
 
@@ -80,8 +63,6 @@ public class DocumentoCollabController {
         service.actualizarCursor(documentoId, ctx.userId, payload);
     }
 
-    // ── REST: consultar roster actual ────────────────────────────────────────
-
     @GetMapping("/api/documentos/{id}/sesion-edicion")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Roster actual de la sesión de edición (CU-38)")
@@ -89,8 +70,6 @@ public class DocumentoCollabController {
     public ResponseEntity<List<SesionEdicionDocumento.Participante>> roster(@PathVariable("id") String documentoId) {
         return ResponseEntity.ok(service.participantes(documentoId));
     }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
 
     private Ctx ctx(SimpMessageHeaderAccessor headers) {
         var attrs = headers.getSessionAttributes();

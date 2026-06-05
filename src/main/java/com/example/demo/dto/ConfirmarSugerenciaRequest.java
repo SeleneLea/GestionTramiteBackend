@@ -6,7 +6,6 @@ import lombok.Data;
 @Data
 public class ConfirmarSugerenciaRequest {
 
-    /** id de la política finalmente elegida (puede diferir de la sugerida). */
     @NotBlank(message = "politicaConfirmadaId es obligatorio")
     private String politicaConfirmadaId;
 }

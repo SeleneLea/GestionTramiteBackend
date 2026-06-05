@@ -1,0 +1,121 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Orquestación LOCAL para descartar errores: MongoDB + Microservicio IA + Backend.
+# NO se commitea a main (la copia exacta de herlandt se mantiene limpia).
+#
+# Requiere el microservicio IA como carpeta hermana (../2doPMicroservicio).
+# Arranque:  docker compose -f docker-compose.local.yml up -d --build   (dentro de 2dPBACK/)
+# Apagar:    docker compose -f docker-compose.local.yml down
+# ──────────────────────────────────────────────────────────────────────────────
+services:
+
+  mongodb:
+    image: mongo:7.0
+    container_name: tramites_mongodb
+    restart: always
+    # Sin auth: la conexión la maneja el bean MongoConfig (app.mongo.uri).
+    environment:
+      MONGO_INITDB_DATABASE: tramites_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_local:/data/db
+    networks:
+      - tramites_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ia-service:
+    build:
+      context: ../2doPMicroservicio
+    image: tramites/ia-service-local
+    container_name: tramites_ia
+    restart: always
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/tramites_db
+      LOG_LEVEL: INFO
+      CORS_ORIGINS: '["http://localhost:8080"]'
+    ports:
+      - "8001:8001"
+    depends_on:
+      - mongodb
+    networks:
+      - tramites_net
+
+  backend:
+    build:
+      context: .
+    image: tramites/backend-local
+    container_name: tramites_backend
+    restart: always
+    # MongoConfig lee --app.mongo.uri (SB4 ignora spring.data.mongodb.*).
+    # IA y S3 se configuran por env (placeholders de application.yml).
+    environment:
+      IA_SERVICE_URL: http://ia-service:8001
+      # Almacenamiento de documentos vía MinIO (S3 local, sin AWS).
+      AWS_S3_ENABLED: "true"
+      AWS_S3_ENDPOINT: http://minio:9000
+      AWS_S3_PATH_STYLE: "true"
+      AWS_S3_BUCKET: tramites-dev
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin123
+      JAVA_OPTS: ""
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        exec java $$JAVA_OPTS -jar /app/app.jar
+        --app.mongo.uri=mongodb://mongodb:27017/tramites_db
+        --ia.service.url=http://ia-service:8001
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mongodb
+      - ia-service
+      - minio-init
+    networks:
+      - tramites_net
+
+  # MinIO: servidor S3-compatible local (almacenamiento de documentos sin AWS).
+  minio:
+    image: minio/minio:latest
+    container_name: tramites_minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"   # API S3
+      - "9001:9001"   # consola web
+    volumes:
+      - minio_data:/data
+    networks:
+      - tramites_net
+
+  # Crea el bucket al arrancar y sale.
+  minio-init:
+    image: minio/mc:latest
+    container_name: tramites_minio_init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until /usr/bin/mc alias set local http://minio:9000 minioadmin minioadmin123; do echo 'esperando minio...'; sleep 2; done;
+      /usr/bin/mc mb -p local/tramites-dev || true;
+      /usr/bin/mc anonymous set download local/tramites-dev || true;
+      echo 'bucket tramites-dev listo';
+      "
+    networks:
+      - tramites_net
+
+volumes:
+  mongodb_local:
+  minio_data:
+
+networks:
+  tramites_net:
+    driver: bridge

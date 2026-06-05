@@ -19,19 +19,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * P1 §7 — Alerta DETERMINISTA de SLA VENCIDO al funcionario.
- *
- * Distinta del riesgo IA (CU-43, que es probabilidad ANTES de vencer): aquí se
- * avisa cuando un trámite asignado YA superó el tiempo límite ({@code slaHoras}
- * de la Actividad del nodo activo). Recorre los trámites en curso, compara el
- * tiempo transcurrido desde que la sección del nodo se asignó (fallback: inicio
- * del trámite) contra el SLA, y emite una notificación web tipo
- * {@code sla_vencido} al funcionario de esa rama — una sola vez por nodo
- * (marcador {@code slaVencidoNotificadoNodoId} en el trámite).
- *
- * Se desactiva con {@code app.scheduler.sla.enabled=false}.
- */
 @Service
 @Slf4j
 public class SlaVencidoScheduler {
@@ -45,12 +32,10 @@ public class SlaVencidoScheduler {
     @Value("${app.scheduler.sla.enabled:true}")
     private boolean enabled;
 
-    /** Cada 10 min. Configurable vía {@code app.scheduler.sla.cron}. */
     @Scheduled(cron = "${app.scheduler.sla.cron:0 */10 * * * *}")
     public void ejecutar() {
         if (!enabled) return;
         int alertas = 0;
-        // try/catch POR TRÁMITE: uno corrupto no debe abortar el resto de la pasada.
         for (Tramite t : tramiteRepository.findAll()) {
             if (t.getFechaCierreReal() != null) continue;
             try {
@@ -65,7 +50,6 @@ public class SlaVencidoScheduler {
     }
 
     private int revisarTramite(Tramite t) {
-        // Nodos activos: el actual, o las ramas en un flujo paralelo.
         List<String> nodosActivos = new ArrayList<>();
         if (t.estaEnParalelo()) {
             nodosActivos.addAll(t.getNodosParalellosActivos());
@@ -75,8 +59,6 @@ public class SlaVencidoScheduler {
 
         int emitidas = 0;
         for (String nodoId : nodosActivos) {
-            // Ya avisado por este nodo (lista CSV: en paralelo puede haber varias
-            // ramas vencidas; un único id haría re-notificar en bucle alternante).
             String avisados = t.getSlaVencidoNotificadoNodoId();
             if (avisados != null && ("," + avisados + ",").contains("," + nodoId + ",")) continue;
 
@@ -94,8 +76,6 @@ public class SlaVencidoScheduler {
             long horas = Duration.between(desde, LocalDateTime.now()).toHours();
             if (horas <= act.getSlaHoras()) continue;
 
-            // En paralelo cada rama tiene su funcionario en la sección; fuera de
-            // paralelo manda el funcionario actual del trámite.
             String destinatario = seccion != null && seccion.getFuncionarioId() != null
                     ? seccion.getFuncionarioId()
                     : t.getFuncionarioActualId();

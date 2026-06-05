@@ -38,9 +38,6 @@ public class SugerenciaPoliticaController {
     public ResponseEntity<SugerenciaPolitica> confirmar(
             @PathVariable String id,
             @Valid @RequestBody ConfirmarSugerenciaRequest req) {
-        // tramiteCreadoId queda null hasta que el cliente realmente cree el trámite.
-        // El frontend puede actualizarlo después con una llamada adicional si quiere
-        // dejar la trazabilidad completa.
         return ResponseEntity.ok(service.confirmar(id, req.getPoliticaConfirmadaId(), null));
     }
 

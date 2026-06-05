@@ -8,10 +8,6 @@ import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 
-/**
- * Bean de {@link RestClient} dedicado al microservicio IA.
- * Timeouts cortos para evitar bloquear las funciones core si el modelo cae.
- */
 @Configuration
 public class IaServiceConfig {
 

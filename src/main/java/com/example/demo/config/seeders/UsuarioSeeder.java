@@ -32,16 +32,14 @@ public class UsuarioSeeder {
         String legId = deptoId("LEG");
         String opeId = deptoId("OPE");
 
-        // --- Usuarios base del sistema ---
         crear("Admin",  "Sistema",   "admin@cre.bo",        "admin12345",
                 "administrador", rolAdmin,   null);
         crear("Super",  "Usuario",   "superuser@cre.bo",    "super12345",
                 "administrador", rolSuper,   null);
-        // 2º admin: sirve para la demo de "Compartidos conmigo" (invita al admin principal)
+
         crear("Ana",    "Gestora",   "admin2@cre.bo",       "admin12345",
                 "administrador", rolAdmin,   null);
 
-        // --- Funcionarios por departamento ---
         crear("Carlos",  "Lima",      "funcionario@cre.bo",  "func12345",
                 "funcionario", rolFuncio, tecId != null ? List.of(tecId) : null);
         crear("Maria",   "Rodriguez", "func_atc@cre.bo",     "func12345",
@@ -51,7 +49,6 @@ public class UsuarioSeeder {
         crear("Ana",     "Torres",    "func_ope@cre.bo",     "func12345",
                 "funcionario", rolFuncio, opeId != null ? List.of(opeId) : null);
 
-        // --- Clientes ---
         crear("Juan",    "Perez",     "cliente@cre.bo",      "cliente12345",
                 "cliente", rolCliente, null);
         crear("Luis",    "Mamani",    "cliente2@cre.bo",     "cliente12345",

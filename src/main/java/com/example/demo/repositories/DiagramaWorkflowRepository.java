@@ -10,7 +10,7 @@ import java.util.Optional;
 @Repository
 public interface DiagramaWorkflowRepository extends MongoRepository<DiagramaWorkflow, String> {
     Optional<DiagramaWorkflow> findByPoliticaId(String politicaId);
-    /** Todos los diagramas que referencian una política (incluye históricos). */
+
     List<DiagramaWorkflow> findAllByPoliticaId(String politicaId);
     List<DiagramaWorkflow> findByCreadorId(String creadorId);
     List<DiagramaWorkflow> findByEstado(String estado);

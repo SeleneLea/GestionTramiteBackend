@@ -44,9 +44,6 @@ public class UsuarioService {
         existente.setDepartamentosIds(datos.getDepartamentosIds());
         existente.setActivo(datos.isActivo());
 
-        // El rol SIEMPRE sigue al tipo (no se elige a mano): administrador→Administrador,
-        // funcionario→Funcionario. Solo se recalcula si el tipo CAMBIÓ, para no pisar
-        // roles especiales (p.ej. SuperUser) en ediciones que no tocan el tipo.
         if (datos.getTipo() != null && !datos.getTipo().isBlank()
                 && !datos.getTipo().equals(existente.getTipo())) {
             existente.setTipo(datos.getTipo());
@@ -61,8 +58,6 @@ public class UsuarioService {
         Usuario u = usuarioRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
 
-        // Solo datos personales editables por el propio usuario.
-        // NO se toca email, tipo, rolId, password ni departamentos.
         u.setNombre(req.getNombre());
         u.setApellido(req.getApellido());
         u.setTelefono(req.getTelefono());

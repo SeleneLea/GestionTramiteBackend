@@ -8,6 +8,6 @@ import java.util.List;
 public class DevolverTramiteRequest {
     private String nodoDestinoId;
     private String observaciones;
-    /** Ids de DocumentoArchivo que el funcionario marca como "mal" (caso OBSERVADO). */
+
     private List<String> documentosObservados;
 }

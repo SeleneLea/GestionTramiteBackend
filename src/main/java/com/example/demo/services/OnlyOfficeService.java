@@ -23,13 +23,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Integración con OnlyOffice Document Server para abrir y CO-EDITAR en vivo los
- * documentos Office (.docx/.xlsx/.pptx) del repositorio del trámite. El servidor
- * de documentos descarga el original (URL prefirmada de S3), gestiona la co-edición
- * simultánea entre varios funcionarios y, al guardar, llama al callback, que crea
- * una NUEVA VERSIÓN (CU-35) en S3.
- */
 @Service
 @Slf4j
 public class OnlyOfficeService {
@@ -41,11 +34,10 @@ public class OnlyOfficeService {
     @Autowired private VersionadoService versionadoService;
 
     @Value("${onlyoffice.enabled:false}")        private boolean enabled;
-    @Value("${onlyoffice.server-url:}")          private String serverUrl;     // público (navegador)
-    @Value("${onlyoffice.callback-base:http://backend:8080}") private String callbackBase; // interno
+    @Value("${onlyoffice.server-url:}")          private String serverUrl;
+    @Value("${onlyoffice.callback-base:http://backend:8080}") private String callbackBase;
     @Value("${onlyoffice.jwt-secret:}")          private String jwtSecret;
 
-    /** ext → tipo de editor de OnlyOffice. Solo estas extensiones son editables. */
     private static final Map<String, String> DOC_TYPE = Map.ofEntries(
             Map.entry("docx", "word"),  Map.entry("doc", "word"),  Map.entry("odt", "word"),
             Map.entry("rtf", "word"),   Map.entry("txt", "word"),
@@ -56,7 +48,6 @@ public class OnlyOfficeService {
     public boolean enabled()   { return enabled; }
     public String  serverUrl() { return serverUrl; }
 
-    /** ¿El documento es un Office editable (por nombre o por la s3Key de su versión)? */
     public boolean esEditable(String nombreOExt) {
         return DOC_TYPE.containsKey(ext(nombreOExt));
     }
@@ -68,8 +59,6 @@ public class OnlyOfficeService {
     private boolean conJwt() {
         return jwtSecret != null && !jwtSecret.isBlank();
     }
-
-    // ── Config del editor ────────────────────────────────────────────────────
 
     public Map<String, Object> construirConfig(String documentoId, String usuarioId) {
         if (!enabled) throw new IllegalStateException("OnlyOffice no está habilitado en el servidor.");
@@ -93,7 +82,6 @@ public class OnlyOfficeService {
 
         Map<String, Object> document = new LinkedHashMap<>();
         document.put("fileType", fileType);
-        // key cambia con CADA versión → al guardar (nueva versión) OnlyOffice recarga.
         document.put("key", doc.getVersionActualId());
         document.put("title", tituloConExt(doc.getNombreLogico(), fileType));
         document.put("url", urlOriginal);
@@ -119,13 +107,10 @@ public class OnlyOfficeService {
         return config;
     }
 
-    // ── Callback (guardado) ──────────────────────────────────────────────────
-
     @SuppressWarnings("unchecked")
     public Map<String, Object> procesarCallback(String documentoId, Map<String, Object> body) {
         verificarToken(body);
         int status = body.get("status") instanceof Number n ? n.intValue() : 0;
-        // 2 = listo para guardar (todos cerraron); 6 = force-save mientras editan.
         if (status == 2 || status == 6) {
             String url = str(body.get("url"));
             if (url == null) return Map.of("error", 0);
@@ -152,7 +137,7 @@ public class OnlyOfficeService {
         if (!conJwt()) return;
         Object t = body.get("token");
         if (t == null) throw new SecurityException("Callback OnlyOffice sin token (JWT activo).");
-        Jwts.parser().verifyWith(key()).build().parseSignedClaims(t.toString()); // lanza si inválido
+        Jwts.parser().verifyWith(key()).build().parseSignedClaims(t.toString());
     }
 
     @SuppressWarnings("unchecked")
@@ -177,8 +162,6 @@ public class OnlyOfficeService {
         }
         return resp.body();
     }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
 
     private static String ext(String nombre) {
         if (nombre == null) return "";

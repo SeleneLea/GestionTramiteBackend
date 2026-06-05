@@ -21,17 +21,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Proxy hacia el microservicio Python/FastAPI.
- *
- * Si el microservicio cae o tarda más del timeout configurado, este servicio
- * lanza {@link ResponseStatusException} con código {@code 503 IA_NO_DISPONIBLE},
- * de modo que los controllers degradan limpiamente.
- *
- * Todos los métodos devuelven {@code Map<String,Object>} para no acoplarnos al
- * schema interno del microservicio — los services consumidores extraen los
- * campos que les interesan.
- */
 @Service
 @Slf4j
 public class IaProxyService {
@@ -40,8 +29,6 @@ public class IaProxyService {
     @Qualifier("iaServiceRestClient")
     private RestClient ia;
 
-    // ── CU-39 · voz → formulario ─────────────────────────────────────────────
-
     public Map<String, Object> vozAFormulario(MultipartFile audio, String schemaCamposJson) {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         try {
@@ -49,8 +36,6 @@ public class IaProxyService {
             ByteArrayResource resource = new ByteArrayResource(bytes) {
                 @Override
                 public String getFilename() {
-                    // El navegador (MediaRecorder) graba webm por defecto; el
-                    // microservicio deriva el MediaFormat de Transcribe de esta extensión.
                     return audio.getOriginalFilename() != null
                             ? audio.getOriginalFilename() : "audio.webm";
                 }
@@ -64,12 +49,6 @@ public class IaProxyService {
         return postMultipart("/nlp/voz-a-formulario", body);
     }
 
-    /**
-     * Transcribe un audio recibido como BYTES (p. ej. el audioBase64 del móvil en
-     * CU-40) reutilizando {@code /nlp/voz-a-formulario} con schema vacío — solo
-     * interesa {@code texto_transcrito}. El filename determina el formato
-     * (el móvil graba .m4a/AAC).
-     */
     public Map<String, Object> vozATexto(byte[] audioBytes, String filename) {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         ByteArrayResource resource = new ByteArrayResource(audioBytes) {
@@ -83,8 +62,6 @@ public class IaProxyService {
         return postMultipart("/nlp/voz-a-formulario", body);
     }
 
-    // ── CU-40 · sugerir política ─────────────────────────────────────────────
-
     public Map<String, Object> sugerirPolitica(String descripcion,
                                                 List<Map<String, Object>> politicasActivas) {
         Map<String, Object> req = Map.of(
@@ -94,50 +71,30 @@ public class IaProxyService {
         return postJson("/asignacion/politica", req);
     }
 
-    /**
-     * CU-40 · reentrena el clasificador de política (modelo TensorFlow) con las
-     * políticas activas. {@code politicas}: lista de {id, nombre, descripcion,
-     * categoria}. Lo dispara el backend al activar/archivar una política.
-     */
     public Map<String, Object> reentrenarPolitica(List<Map<String, Object>> politicas) {
         return postJson("/asignacion/reentrenar", Map.of("politicas", politicas));
     }
 
-    // ── CU-14 · diseño de flujo por prompt (IA) ──────────────────────────────
-    // Devuelve {nodos, transiciones}. Si el provider es 'local' o la IA falla, el
-    // micro responde 503 y esto lanza IA_NO_DISPONIBLE → el caller usa heurística.
     public Map<String, Object> generarFlujo(String prompt, List<String> departamentos) {
         return postJson("/nlp/diagrama", Map.of(
                 "prompt", prompt != null ? prompt : "",
                 "departamentos", departamentos != null ? departamentos : List.of()));
     }
 
-    // ── CU-41 · reportes naturales ───────────────────────────────────────────
-
     public Map<String, Object> consultaNatural(String consulta) {
         return postJson("/reportes/consulta-natural", Map.of("consulta", consulta));
     }
-
-    // ── CU-46 · clasificar intención del asistente (modelo TensorFlow propio) ──
 
     public Map<String, Object> clasificarIntencion(String consulta) {
         return postJson("/nlp/clasificar-intencion",
                 Map.of("consulta", consulta != null ? consulta : ""));
     }
 
-    // ── CU-31 · asistente generativo (Bedrock) — escalación híbrida ──────────
-    // Solo se invoca cuando el clasificador TensorFlow no resuelve (baja
-    // confianza / fuera de alcance). Si AWS está apagado o Bedrock falla, el
-    // microservicio responde 503 y esto lanza IA_NO_DISPONIBLE → el caller
-    // (AgenteAsistenciaService) degrada a su base de conocimiento local.
-
     public Map<String, Object> asistenteLlm(String consulta, String contexto) {
         return postJson("/nlp/asistente", Map.of(
                 "consulta", consulta != null ? consulta : "",
                 "contexto", contexto != null ? contexto : ""));
     }
-
-    // ── CU-42 · ruta óptima ──────────────────────────────────────────────────
 
     public Map<String, Object> rutaOptima(String tramiteId, String politicaId,
                                            Map<String, Object> contexto,
@@ -151,14 +108,10 @@ public class IaProxyService {
         return postJson("/enrutamiento/ruta-optima", req);
     }
 
-    // ── CU-43 · riesgo de demora (batch) ─────────────────────────────────────
-
     public List<Map<String, Object>> riesgoDemora(List<Map<String, Object>> features) {
         return postJsonList("/enrutamiento/riesgo-demora",
                 Map.of("tramites", features != null ? features : List.of()));
     }
-
-    // ── CU-44 · prioridades ──────────────────────────────────────────────────
 
     public List<Map<String, Object>> prioridades(String funcionarioId,
                                                   List<Map<String, Object>> tramites) {
@@ -169,14 +122,10 @@ public class IaProxyService {
         return postJsonList("/enrutamiento/prioridades", req);
     }
 
-    // ── CU-45 · anomalías ────────────────────────────────────────────────────
-
     public List<Map<String, Object>> anomalias(List<Map<String, Object>> secuencias) {
         return postJsonList("/enrutamiento/anomalias",
                 Map.of("secuencias", secuencias != null ? secuencias : List.of()));
     }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> postJson(String path, Object body) {

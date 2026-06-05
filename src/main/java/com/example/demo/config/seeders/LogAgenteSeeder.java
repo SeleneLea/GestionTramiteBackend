@@ -39,14 +39,12 @@ public class LogAgenteSeeder {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // Cliente consulta sobre estado de su tramite
         log(clienteId, "tramites", "Cliente", null,
                 "Como va mi tramite TRM-2024-001?",
                 "Su tramite TRM-2024-001 ha sido completado exitosamente. La conexion electrica fue instalada el 2024-04-20. "
                 + "El numero de medidor instalado es MED20240421.",
                 320f, true, now.minusDays(4));
 
-        // Cliente pregunta que documentos necesita
         log(clienteId, "tramites", "Cliente", null,
                 "Que documentos necesito para nueva conexion electrica?",
                 "Para solicitar una nueva conexion electrica residencial necesita: 1) Cedula de identidad vigente, "
@@ -54,7 +52,6 @@ public class LogAgenteSeeder {
                 + "Puede iniciar el tramite en nuestra plataforma.",
                 450f, true, now.minusDays(20));
 
-        // Funcionario ATC consulta sobre flujo del tramite
         log(funcAtcId, "workflow", "Funcionario", trm003,
                 "Cuales son los pasos siguientes para el tramite TRM-2024-003?",
                 "El tramite TRM-2024-003 se encuentra en fase de inspeccion tecnica paralela. "
@@ -63,7 +60,6 @@ public class LogAgenteSeeder {
                 + "3) Una vez completadas, el tramite avanzara a revision legal (LEG).",
                 280f, true, now.minusDays(8));
 
-        // Cliente 2 consulta sobre su tramite observado
         log(cliente2Id, "tramites", "Cliente", null,
                 "Por que mi tramite tiene observaciones?",
                 "Su tramite TRM-2024-005 tiene observaciones en el area legal. La observacion indica que se requiere "
@@ -71,7 +67,6 @@ public class LogAgenteSeeder {
                 + "oficinas del area legal o subalo digitalmente.",
                 510f, true, now.minusDays(6));
 
-        // Admin consulta sobre generacion de diagrama con IA
         log(adminId, "workflow", "Administrador", null,
                 "Como genero un diagrama de workflow para el proceso de reconexion por mora?",
                 "Para generar el diagrama de workflow de reconexion por mora, puede usar la opcion 'Generar con IA' "
@@ -80,7 +75,6 @@ public class LogAgenteSeeder {
                 + "electrico tras verificacion de pago de deuda morosa, con validacion del area legal y notificacion al cliente'.",
                 680f, true, now.minusDays(2));
 
-        // Consulta que no fue util
         log(funcAtcId, "expedientes", "Funcionario", trm004,
                 "Cuantos tramites estan en espera hoy?",
                 "No tengo acceso en tiempo real al conteo actual de tramites en espera. "

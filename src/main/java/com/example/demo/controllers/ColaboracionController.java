@@ -41,7 +41,6 @@ public class ColaboracionController {
         return ResponseEntity.ok(c);
     }
 
-    /** Diagramas compartidos con el usuario autenticado (pendientes + aceptadas). */
     @GetMapping("/compartidos-conmigo")
     @PreAuthorize("hasAnyRole('FUNCIONARIO','ADMINISTRADOR')")
     public ResponseEntity<List<CompartidoConmigoResponse>> compartidosConmigo(

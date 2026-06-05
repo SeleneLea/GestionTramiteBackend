@@ -60,9 +60,6 @@ public class PoliticaNegocioService {
             guardada = politicaRepository.save(guardada);
         }
 
-        // CU-32 — el repositorio documental ya NO se crea aquí: ahora es 1:1 al
-        // trámite y se crea de forma idempotente al iniciarlo (WorkflowEngineService).
-
         return guardada;
     }
 
@@ -74,11 +71,6 @@ public class PoliticaNegocioService {
         return politicaRepository.findByEstado("activa");
     }
 
-    /**
-     * Políticas que NO tienen un diagrama (no archivado) asignado — las únicas a
-     * las que se les puede crear/generar uno (1:1 política↔diagrama). Se usa para
-     * filtrar el desplegable en "Nuevo diagrama" y "Diseño con IA".
-     */
     public List<PoliticaNegocio> listarSinDiagrama() {
         java.util.Set<String> conDiagrama = diagramaRepository.findAll().stream()
                 .filter(d -> d.getPoliticaId() != null && !"archivado".equals(d.getEstado()))
@@ -153,7 +145,6 @@ public class PoliticaNegocioService {
         validarTransicionEstado(p.getEstado(), nuevoEstado);
 
         if ("activa".equals(nuevoEstado)) {
-            // No se puede activar sin diagrama publicado y con nodos
             if (p.getDiagramaId() == null) {
                 throw new IllegalArgumentException(
                         "No se puede activar la política: primero asigna un diagrama de flujo");
@@ -168,10 +159,6 @@ public class PoliticaNegocioService {
                         "El diagrama no tiene nodos. Agrega al menos Inicio, una actividad y Fin antes de activar");
             }
 
-            // Cada nodo de decisión (if) DEBE tener su pregunta escrita (no el
-            // placeholder "¿Decisión?") y sus DOS ramas conectadas y etiquetadas
-            // (Sí / No); de lo contrario el funcionario vería una decisión sin
-            // pregunta y con botones en blanco, sin saber por qué camino seguir.
             for (NodoDiagrama nodo : nodos) {
                 if (!"decision".equals(nodo.getTipo())) continue;
                 if (preguntaVacia(nodo.getNombre())) {
@@ -202,18 +189,12 @@ public class PoliticaNegocioService {
         p.setEstado(nuevoEstado);
         PoliticaNegocio guardada = politicaRepository.save(p);
 
-        // El estado del DIAGRAMA lo MANDA la política (el diagrama no tiene estado
-        // propio): borrador→borrador, activa→publicado, archivada→archivado. Así
-        // nunca queda un diagrama publicado con su política en borrador.
         sincronizarEstadoDiagrama(guardada, nuevoEstado);
 
-        // CU-40 (P2 §3.2.2): cambió el conjunto de políticas activas → reentrena
-        // el clasificador del microservicio IA para que reconozca el nuevo set.
         reentrenarClasificadorPoliticaAsync();
         return guardada;
     }
 
-    /** Propaga el estado de la política a su diagrama vinculado. */
     private void sincronizarEstadoDiagrama(PoliticaNegocio p, String estadoPolitica) {
         if (p.getDiagramaId() == null) return;
         String estadoDiagrama = switch (estadoPolitica) {
@@ -230,17 +211,11 @@ public class PoliticaNegocioService {
         });
     }
 
-    /**
-     * Reentrena el clasificador de política (modelo TensorFlow del microservicio
-     * IA) con las políticas ACTIVAS. Best-effort y en segundo plano: nunca debe
-     * bloquear ni romper el cambio de estado si la IA está caída. El modelo es
-     * dominio-agnóstico: aprende del texto de las políticas del negocio que sea.
-     */
     private void reentrenarClasificadorPoliticaAsync() {
         Thread t = new Thread(() -> {
             try {
                 List<PoliticaNegocio> activas = politicaRepository.findByEstado("activa");
-                if (activas.size() < 2) return; // el clasificador necesita ≥2 clases
+                if (activas.size() < 2) return;
                 List<Map<String, Object>> payload = new ArrayList<>();
                 for (PoliticaNegocio p : activas) {
                     Map<String, Object> m = new java.util.HashMap<>();
@@ -252,24 +227,17 @@ public class PoliticaNegocioService {
                 }
                 iaProxy.reentrenarPolitica(payload);
             } catch (RuntimeException ex) {
-                // IA caída u otro fallo: el clasificador conserva su último modelo
-                // (o la heurística). No afecta la operación del admin.
             }
         }, "reentrenar-clasificador-politica");
         t.setDaemon(true);
         t.start();
     }
 
-    /**
-     * Una pregunta de decisión está "vacía" si no se escribió o quedó el
-     * placeholder por defecto ("¿Decisión?" / "decisión"). Normaliza acentos y
-     * signos de interrogación para no depender de tildes/encoding.
-     */
     private boolean preguntaVacia(String nombre) {
         String norm = java.text.Normalizer
                 .normalize(nombre == null ? "" : nombre.trim(), java.text.Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "")   // quitar acentos
-                .replaceAll("[¿?]", "")     // quitar signos de interrogación
+                .replaceAll("\\p{M}", "")
+                .replaceAll("[¿?]", "")
                 .trim()
                 .toLowerCase();
         return norm.isEmpty() || norm.equals("decision");
@@ -309,11 +277,6 @@ public class PoliticaNegocioService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Requisitos documentales de la PRIMERA actividad (nodo de entrada) de la política.
-     * Sigue el diagrama desde el nodo "inicio" hasta el primer nodo de tipo actividad,
-     * para que el cliente los suba al iniciar el trámite (y no quede en compuerta).
-     */
     public ActividadDocumentosDTO documentosIniciales(String politicaId) {
         PoliticaNegocio p = politicaRepository.findById(politicaId)
                 .orElseThrow(() -> new IllegalArgumentException("Política no encontrada"));
@@ -338,7 +301,6 @@ public class PoliticaNegocioService {
         return new ActividadDocumentosDTO(act.getId(), act.getNombre(), docs);
     }
 
-    /** BFS desde {@code desde} siguiendo transiciones hasta el primer nodo de tipo actividad. */
     private NodoDiagrama primeraActividadDesde(NodoDiagrama desde, List<NodoDiagrama> nodos) {
         java.util.Set<String> visto = new java.util.HashSet<>();
         java.util.Deque<NodoDiagrama> cola = new java.util.ArrayDeque<>();

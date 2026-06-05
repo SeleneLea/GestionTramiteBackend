@@ -11,14 +11,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-/**
- * CU-37 — Evento INMUTABLE de auditoría de un documento.
- *
- * Acciones válidas: LECTURA | DESCARGA | SUBIDA | NUEVA_VERSION
- * | EDICION_EN_VIVO | EDICION_GUARDADA | BLOQUEO | DESBLOQUEO | BORRADO.
- *
- * Solo se permite {@code insert}, nunca update/delete (enforced en el servicio).
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

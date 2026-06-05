@@ -14,15 +14,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * CU-40 — Orquesta la sugerencia de política para el cliente.
- *
- * Flujo:
- *  1. Lista las políticas activas.
- *  2. Llama al microservicio IA para obtener el top 3.
- *  3. Persiste la {@link SugerenciaPolitica} (histórico para reentrenamiento).
- *  4. Devuelve la respuesta al cliente con el {@code sugerenciaId} para confirmar luego.
- */
 @Service
 public class SugerenciaPoliticaService {
 
@@ -36,18 +27,12 @@ public class SugerenciaPoliticaService {
     @Autowired private SugerenciaPoliticaRepository sugerenciaRepository;
 
     public SugerirPoliticaResponse sugerir(SugerirPoliticaRequest req, String clienteId) {
-        // Solo políticas activas son candidatas (RN-CL01)
         List<PoliticaNegocio> activas = politicaRepository.findByEstado("activa");
         if (activas.isEmpty()) {
             throw new IllegalStateException(
                     "No hay políticas activas — no se puede sugerir una para el trámite.");
         }
 
-        // Vía AUDIO de CU-40 ("texto o audio"): si el cliente solo dictó, la app
-        // manda descripcion="(audio)" + audioBase64. Transcribimos primero y el
-        // texto resultante alimenta al clasificador (y queda como descripción
-        // original del histórico). Si la transcripción no está disponible, se
-        // sigue con la descripción recibida (best-effort).
         String descripcion = req.getDescripcion();
         if (req.getAudioBase64() != null && !req.getAudioBase64().isBlank()
                 && (descripcion == null || descripcion.isBlank()
@@ -56,14 +41,11 @@ public class SugerenciaPoliticaService {
                 byte[] audio = java.util.Base64.getDecoder().decode(req.getAudioBase64());
                 Map<String, Object> tr = iaProxy.vozATexto(audio, "dictado.m4a");
                 Object texto = tr.get("texto_transcrito");
-                // es_stub=true → el micro NO transcribió de verdad (texto de
-                // respaldo): adoptarlo contaminaría la clasificación y el histórico.
                 boolean esStub = Boolean.TRUE.equals(tr.get("es_stub"));
                 if (!esStub && texto != null && !texto.toString().isBlank()) {
                     descripcion = texto.toString();
                 }
             } catch (RuntimeException ex) {
-                // IA/transcripción no disponible o base64 inválido → descripción original
             }
         }
         req.setDescripcion(descripcion);
@@ -73,8 +55,6 @@ public class SugerenciaPoliticaService {
             Map<String, Object> entry = new java.util.HashMap<>();
             entry.put("id", p.getId());
             entry.put("nombre", p.getNombre() != null ? p.getNombre() : "");
-            // Texto real de la política → alimenta la heurística de respaldo del
-            // microservicio cuando el modelo TF aún no conoce esta política.
             entry.put("descripcion", p.getDescripcion() != null ? p.getDescripcion() : "");
             entry.put("categoria", p.getCategoria() != null ? p.getCategoria() : "");
             entry.put("palabras_clave", List.of());
@@ -87,7 +67,6 @@ public class SugerenciaPoliticaService {
         Float confianza   = floatDe(resp.get("confianza"));
         List<SugerirPoliticaResponse.Candidato> top3 = parseTop3(resp.get("top3"));
 
-        // Persistir histórico
         SugerenciaPolitica sug = new SugerenciaPolitica();
         sug.setClienteId(clienteId);
         sug.setDescripcionOriginal(req.getDescripcion());
@@ -128,8 +107,6 @@ public class SugerenciaPoliticaService {
         sug.setFeedback(FEEDBACK_CANCELADA);
         return sugerenciaRepository.save(sug);
     }
-
-    // ── parseo defensivo ─────────────────────────────────────────────────────
 
     @SuppressWarnings("unchecked")
     private List<SugerirPoliticaResponse.Candidato> parseTop3(Object raw) {

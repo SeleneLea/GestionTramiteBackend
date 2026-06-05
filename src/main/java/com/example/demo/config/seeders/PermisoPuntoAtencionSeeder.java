@@ -11,17 +11,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * Parte 2 — CU-36: permisos documentales por punto de atención.
- *
- * Para evitar que los funcionarios choquen contra DOC_PERMISO_DENEGADO en la
- * demo (regla RN-P01: SOLO_LECTURA por default), seedeamos un permiso amplio
- * (LECTURA_Y_EDICION) por cada par (política activa × actividad reutilizable).
- *
- * En producción, el administrador refina esto desde la UI; este seeder solo
- * garantiza un estado inicial usable. Idempotente: si ya existe un permiso
- * para el par (politicaId, actividadId), lo deja como está.
- */
 @Component
 @Slf4j
 public class PermisoPuntoAtencionSeeder {
@@ -30,13 +19,6 @@ public class PermisoPuntoAtencionSeeder {
     @Autowired private PoliticaNegocioRepository politicaRepo;
     @Autowired private ActividadRepository actividadRepo;
 
-    /**
-     * Sin restricción de TIPOS por defecto (lista vacía = todos visibles según
-     * la regla del CU-36). Sembrar una lista poblada activaba el filtro por tipo
-     * en toda la demo y ocultaba al funcionario los documentos del cliente
-     * (cuyo tipoDocumento es el nombre libre del requisito). El admin la
-     * configura por punto desde la UI cuando de verdad quiera restringir.
-     */
     private static final List<String> TIPOS_VISIBLES_DEFAULT = List.of();
 
     public void seed() {

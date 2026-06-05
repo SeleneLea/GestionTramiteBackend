@@ -9,19 +9,6 @@ import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Component;
 
-/**
- * Punto de entrada del seed automatico al iniciar la aplicacion.
- *
- * Comportamiento:
- *  - app.seed.reset = true  → DROPEA todas las colecciones y re-siembra desde cero.
- *  - app.seed.reset = false → solo siembra si faltan datos (idempotente).
- *
- * @DependsOn("mongoIndexConfig"): la migracion de indices (drop del indice unico
- * viejo politicaId de repositorios_documentales) DEBE correr ANTES de sembrar,
- * o el seeder de repositorios-por-tramite choca con E11000 al crear 2 repos de
- * la misma politica. El orden de @PostConstruct entre beans no esta garantizado
- * sin esta dependencia explicita.
- */
 @Component
 @Slf4j
 @DependsOn("mongoIndexConfig")

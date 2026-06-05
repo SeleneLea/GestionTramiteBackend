@@ -11,12 +11,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * CU-36 — Nivel de acceso documental por actividad/nodo de una política.
- *
- * Valores válidos de {@code nivelAcceso}:
- *   SOLO_LECTURA | SOLO_EDICION | LECTURA_Y_EDICION.
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

@@ -33,7 +33,6 @@ public class NotificacionService {
         n.setFechaCreacion(LocalDateTime.now());
         Notificacion guardada = notificacionRepository.save(n);
 
-        // CU-28: push real vía SSE al usuario destinatario si tiene streams abiertos.
         sseService.enviar(destinatarioId, "notificacion", guardada);
 
         return guardada;

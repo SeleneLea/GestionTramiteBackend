@@ -24,7 +24,7 @@ public class ExpedienteSeeder {
     @Autowired private UsuarioRepository usuarioRepository;
 
     public void seed() {
-        // Migracion sobre data existente: normalizar estados y nodoIds.
+
         if (expedienteRepository.count() > 0) {
             fixNullNodoIds();
         }
@@ -47,7 +47,7 @@ public class ExpedienteSeeder {
         String funcOpeId = userId("func_ope@cre.bo");
 
         tramiteRepository.findAll().forEach(tramite -> {
-            // Idempotencia por-tramite: si ya tiene expediente, omitir.
+
             if (expedienteRepository.findByTramiteId(tramite.getId()).isPresent()) {
                 return;
             }
@@ -65,7 +65,7 @@ public class ExpedienteSeeder {
                         atcId, tecId, funcAtcId, funcTecId);
                 case "TRM-2024-004" -> crearExpedienteInicial(tramite,
                         nAtcVer, atcId, funcAtcId);
-                // Demo de COMPUERTA: avanzó a ATC pero faltan documentos del cliente.
+
                 case "TRM-2024-008" -> crearExpedienteCompuerta(tramite,
                         nAtcVer, atcId, funcAtcId);
                 case "TRM-2024-005", "TRM-2024-011" -> crearExpedienteObservado(tramite,
@@ -150,7 +150,6 @@ public class ExpedienteSeeder {
         LocalDateTime base = t.getFechaInicio();
         ExpedienteDigital exp = crearExpediente(t.getId(), base);
 
-        // Recién llegado a la bandeja de ATC: pendiente de que el funcionario lo acepte.
         SeccionExpediente sAtc = crearSeccion(exp.getId(), nAtcVer, atcId, 1, "Pendiente de recepcion",
                 funcAtcId, base, null);
 
@@ -162,12 +161,6 @@ public class ExpedienteSeeder {
         tramiteRepository.save(t);
     }
 
-    /**
-     * Demo de COMPUERTA: el trámite avanzó a la actividad de ATC pero faltan documentos
-     * OBLIGATORIOS del CLIENTE. La sección queda en "Pendiente de documentos" (lo pone el
-     * sistema). El cliente debe completarlos. {@code DocumentoArchivoSeeder} NO le siembra
-     * documentos a este trámite, así que sus requisitos quedan pendientes (lista azul no vacía).
-     */
     private void crearExpedienteCompuerta(Tramite t, String nAtcVer, String atcId, String funcAtcId) {
         LocalDateTime base = t.getFechaInicio();
         ExpedienteDigital exp = crearExpediente(t.getId(), base);
@@ -231,11 +224,9 @@ public class ExpedienteSeeder {
                 funcTecId, base.plusDays(1), base.plusDays(5));
         poblarCamposPresupuesto(sTecPres.getId());
 
-        // LEG en curso: listo para que el funcionario LEG apruebe y avance a OPE.
         SeccionExpediente sLeg = crearSeccion(exp.getId(), nLegContr, legId, 4, "En ejecucion",
                 funcLegId, base.plusDays(6), null);
 
-        // OPE bloqueada: se desbloqueara cuando LEG apruebe.
         SeccionExpediente sOpe = crearSeccion(exp.getId(), nOpeCierre, opeId, 5, "Bloqueada",
                 funcOpeId, null, null);
 
@@ -303,7 +294,6 @@ public class ExpedienteSeeder {
                 funcLegId, base.plusDays(8), base.plusDays(15));
         poblarCamposContrato(sLeg.getId());
 
-        // OPE en curso: el funcionario esta ejecutando los trabajos
         SeccionExpediente sOpe = crearSeccion(exp.getId(), nOpeCierre, opeId, 5, "En ejecucion",
                 funcOpeId, base.plusDays(16), null);
 
@@ -332,8 +322,6 @@ public class ExpedienteSeeder {
         t.setExpedienteId(exp.getId());
         tramiteRepository.save(t);
     }
-
-    // --- Helpers ---
 
     private ExpedienteDigital crearExpediente(String tramiteId, LocalDateTime fechaCreacion) {
         ExpedienteDigital exp = new ExpedienteDigital();
@@ -445,7 +433,7 @@ public class ExpedienteSeeder {
                             s.getId(), s.getOrdenSeccion(), nodoId);
                 }
             }
-            // Normalizar estados al vocabulario del motor/frontend
+
             String estadoNorm = normalizarEstadoSeccion(s.getEstado());
             if (estadoNorm != null && !estadoNorm.equals(s.getEstado())) {
                 s.setEstado(estadoNorm);
@@ -456,11 +444,10 @@ public class ExpedienteSeeder {
             }
         });
 
-        // Also fix tramites whose nodoActualId points to a node that no longer exists
         tramiteRepository.findAll().forEach(t -> {
             if (t.getNodoActualId() != null
                     && nodoRepository.findById(t.getNodoActualId()).isEmpty()) {
-                // Re-resolve by matching the tramite's nodo via its expediente sections
+
                 expedienteRepository.findByTramiteId(t.getId()).ifPresent(exp -> {
                     seccionRepository.findByExpedienteIdOrderByOrdenSeccionAsc(exp.getId())
                         .stream()
@@ -481,7 +468,7 @@ public class ExpedienteSeeder {
     private String orEmpty(String s) { return s != null ? s : ""; }
 
     private String normalizarEstadoSeccion(String estado) {
-        // Canonicaliza cualquier literal (legacy o nuevo) al vocabulario del enum.
+
         EstadoSeccion e = EstadoSeccion.from(estado);
         return e != null ? e.getValor() : estado;
     }

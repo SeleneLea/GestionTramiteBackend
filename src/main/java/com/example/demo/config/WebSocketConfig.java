@@ -19,11 +19,6 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
 import java.util.List;
 import java.util.Map;
 
-/**
- * CU-15 / Colaboración en tiempo real sobre diagramas.
- * Expone /ws como endpoint STOMP. El JWT se pasa como query string `?token=...`
- * porque los navegadores no permiten setear cabeceras Authorization en WebSocket.
- */
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
@@ -39,7 +34,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // Misma lista que CorsConfigurationSource en SecurityConfig — mantenerlas sincronizadas.
+
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns(
                         "http://localhost:4200",
@@ -53,10 +48,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .addInterceptors(new JwtHandshakeInterceptor(jwtUtils));
     }
 
-    /**
-     * Handshake interceptor que valida el JWT del query string y guarda el userId
-     * en los atributos de la sesión WebSocket, accesibles luego en los controladores.
-     */
     static class JwtHandshakeInterceptor implements HandshakeInterceptor {
         private final JwtUtils jwtUtils;
 
@@ -84,7 +75,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
                 attributes.put("userId", userId);
                 attributes.put("rol", rol);
-                // Asocia un Principal a la sesión por si se requiere routing dirigido.
+
                 var auth = new UsernamePasswordAuthenticationToken(
                         userId, null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + rol.toUpperCase()))
@@ -99,7 +90,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         @Override
         public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                    WebSocketHandler wsHandler, Exception exception) {
-            // no-op
+
         }
     }
 }

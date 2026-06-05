@@ -4,38 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-/**
- * Orquestador de todos los seeders del sistema.
- *
- * Orden de ejecucion (respeta dependencias entre colecciones):
- *  1. Permisos
- *  2. Roles         (ref permisos)
- *  3. Departamentos
- *  4. Documentos
- *  5. Actividades   (ref departamentos, documentos)
- *  6. Usuarios      (ref roles, departamentos)
- *  6. Canales envio
- *  7. Politicas     (ref usuarios)
- *  8. Diagramas     (ref politicas, actividades, departamentos, usuarios)
- *  9. Formularios   (ref nodos del diagrama)
- * 10. Tramites      (ref clientes, politica, nodos)
- * 11. Estados       (ref tramites, nodos, usuarios)
- * 12. Expedientes   (ref tramites, nodos, departamentos, usuarios)
- * 13. Adjuntos      (ref secciones, usuarios)
- * 14. Trazabilidad  (ref tramites, nodos, usuarios)
- * 15. Notificaciones(ref usuarios, tramites)
- * 16. Metricas      (ref tramites, actividades, departamentos)
- * 17. Reportes      (ref usuarios)
- * 18. Logs agente   (ref usuarios, tramites)
- * 19. Colaboraciones(ref diagramas, usuarios)
- * 20. Versiones     (ref politicas, diagramas, usuarios)
- *
- * Uso en produccion:
- *   java -jar backend.jar
- *   (el seeder corre al inicio via @PostConstruct en DataSeeder, todos los seeders
- *    verifican si los datos ya existen antes de insertar, por lo que es seguro
- *    ejecutar multiples veces sin generar duplicados)
- */
 @Component
 @Slf4j
 public class MasterSeeder {
@@ -62,12 +30,12 @@ public class MasterSeeder {
     @Autowired private ColaboracionSeeder colaboracionSeeder;
     @Autowired private VersionSeeder      versionSeeder;
 
-    // ── Parte 2 ──────────────────────────────────────────────────────────
     @Autowired private PermisoPuntoAtencionSeeder permisoPuntoAtencionSeeder;
     @Autowired private RepositorioDocumentalSeeder repositorioDocumentalSeeder;
     @Autowired private DocumentoArchivoSeeder     documentoArchivoSeeder;
     @Autowired private AlertaAnomaliaSeeder       alertaAnomaliaSeeder;
     @Autowired private TramiteIaPatchSeeder       tramiteIaPatchSeeder;
+    @Autowired private DatosMasivosSeeder         datosMasivosSeeder;
 
     public void seedAll() {
         log.info("========================================");
@@ -96,22 +64,17 @@ public class MasterSeeder {
         colaboracionSeeder.seed();
         versionSeeder.seed();
 
-        // ── Parte 2 ──────────────────────────────────────────────────────
-        // Requiere políticas + actividades sembradas.
         permisoPuntoAtencionSeeder.seed();
-        // Crea el contenedor de repositorio 1:1 por trámite (sin S3, sin docs)
-        // y enlaza tramite.repositorioId. Requiere trámites sembrados.
+
         repositorioDocumentalSeeder.seed();
-        // Documentos de PRUEBA en el repositorio (sube PDFs a S3) para los primeros
-        // trámites, para que "Ver" funcione. Requiere repos + S3. La compuerta se
-        // demuestra iniciando un trámite NUEVO (arranca sin documentos).
+
         documentoArchivoSeeder.seed();
-        // Patch sobre trámites existentes: rellena riesgoDemora, probSuperarSla
-        // y rutaSugerida (CU-42/CU-43) si están vacíos. Requiere trámites +
-        // diagramas + nodos sembrados.
+
         tramiteIaPatchSeeder.seed();
-        // Requiere trámites sembrados (apunta a tramiteId reales).
+
         alertaAnomaliaSeeder.seed();
+
+        datosMasivosSeeder.seed();
 
         log.info("========================================");
         log.info("       SEED COMPLETADO EXITOSAMENTE    ");

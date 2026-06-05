@@ -18,11 +18,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-/**
- * P1 §7 — Igual que en los nodos: los FUNCIONARIOS colaboradores 'editor'
- * (invitación aceptada) pueden mutar transiciones; el control fino lo hace
- * {@link ColaboracionService#validarEditorDelDiagrama}.
- */
 @RestController
 @RequestMapping("/api")
 @Tag(name = "Transiciones del Diagrama", description = "CU-13: conectar nodos del lienzo con flechas")
@@ -90,8 +85,6 @@ public class FlujoTransicionController {
         }
         return ResponseEntity.noContent().build();
     }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
 
     private void validarEdicion(String diagramaId, Authentication auth) {
         if (esAdmin(auth)) return;

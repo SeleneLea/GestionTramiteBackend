@@ -14,12 +14,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-/**
- * CU-37 — Servicio de auditoría documental.
- *
- * Solo expone {@link #registrar} (insert) y consultas. NO se exponen métodos
- * de update/delete: la auditoría es inmutable según {@code RN-A02}.
- */
 @Service
 public class AuditoriaDocumentoService {
 
@@ -36,7 +30,6 @@ public class AuditoriaDocumentoService {
     @Autowired private AuditoriaDocumentoRepository repo;
     @Autowired private UsuarioRepository usuarioRepository;
 
-    /** Registra un evento. Devuelve el evento persistido para enlazar el id en logs si hace falta. */
     public AuditoriaDocumento registrar(String documentoArchivoId,
                                         String versionId,
                                         String usuarioId,
@@ -56,7 +49,6 @@ public class AuditoriaDocumentoService {
         a.setDetalle(detalle);
         a.setTimestamp(LocalDateTime.now());
 
-        // Resolver nombre del usuario sin que el llamador tenga que hacerlo.
         if (usuarioId != null) {
             usuarioRepository.findById(usuarioId).ifPresent(u -> {
                 String nombre = (u.getNombre() != null ? u.getNombre() : "")

@@ -42,20 +42,15 @@ public class ColaboracionSeeder {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // Colaboracion ACEPTADA — admin invita a funcionario TEC como editor
         crear(diagramaId, adminId, funcTecId, "editor", "aceptada",
                 now.minusDays(10), now.minusDays(9));
 
-        // Colaboracion ACEPTADA — admin invita a funcionario LEG como visor
         crear(diagramaId, adminId, funcLegId, "visor", "aceptada",
                 now.minusDays(8), now.minusDays(7));
 
-        // Colaboracion PENDIENTE — admin invita a funcionario OPE (aun sin responder)
         crear(diagramaId, adminId, funcOpeId, "visor", "pendiente",
                 now.minusDays(2), null);
 
-        // --- "Compartidos CONMIGO" del admin principal: admin2 lo invita a colaborar ---
-        // (así su pantalla "Compartidos conmigo" muestra datos de una vez)
         crear(diagramaId, admin2Id, adminId, "editor", "aceptada",
                 now.minusDays(5), now.minusDays(4));
         crear(diag2Id, admin2Id, adminId, "visualizador", "pendiente",

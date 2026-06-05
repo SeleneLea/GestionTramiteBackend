@@ -55,7 +55,6 @@ public class ExpedienteController {
         return ResponseEntity.ok(expedienteService.completarSeccionYAvanzar(seccionId, request, usuarioId, esAdmin));
     }
 
-    /** True si la autenticación tiene el rol ROLE_ADMINISTRADOR (override de autorización). */
     private boolean esAdministrador(Authentication authentication) {
         return authentication.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_ADMINISTRADOR".equals(a.getAuthority()));

@@ -44,15 +44,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * CU-41 — Reportes ad-hoc por consulta natural.
- *
- * El microservicio IA interpreta la consulta (NLP) y devuelve un PLAN: pipeline
- * Mongo SEGURO + qué nombres enriquecer + filtros por nombre. Spring valida y
- * ejecuta el pipeline, resuelve los nombres (cliente/política/departamento) vía
- * repositorios (sin $lookup frágil), aplica los filtros por nombre y puede
- * exportar el resultado a Excel/PDF.
- */
 @Service
 public class ReporteNaturalService {
 
@@ -70,14 +61,12 @@ public class ReporteNaturalService {
     @Value("#{'${app.reportes.colecciones-permitidas:tramites,expedientes_digitales,documentos_archivo,sugerencias_politica,alertas_anomalia}'.split(',')}")
     private List<String> coleccionesPermitidas;
 
-    /** Operadores prohibidos (los joins se hacen en Java, no en Mongo). */
     private static final Set<String> OPERADORES_PROHIBIDOS = Set.of(
             "$out", "$merge", "$function", "$accumulator", "$where", "$expr",
             "$lookup", "$unionWith", "$graphLookup");
 
     private final ObjectMapper json = new ObjectMapper();
 
-    /** Resultado de ejecutar un plan: filas enriquecidas + metadatos. */
     private record Resultado(String collection, List<Map<String, Object>> filas, String queryStr) {}
 
     public ReporteNaturalResponse generar(ReporteNaturalRequest req, String adminId) {
@@ -101,7 +90,6 @@ public class ReporteNaturalService {
                 filas.size(), null, r.getFormato(), res.queryStr());
     }
 
-    /** Ejecuta la consulta natural y devuelve los bytes del archivo (xlsx|pdf). */
     public byte[] exportar(String consulta, String formato) {
         Resultado res = ejecutarPlan(consulta);
         return "pdf".equalsIgnoreCase(formato)
@@ -109,7 +97,6 @@ public class ReporteNaturalService {
                 : exportarExcel(res.filas());
     }
 
-    // ── núcleo: interpretar (IA) → ejecutar → enriquecer → filtrar ──────────────
     @SuppressWarnings("unchecked")
     private Resultado ejecutarPlan(String consulta) {
         Map<String, Object> resp = iaProxy.consultaNatural(consulta);
@@ -129,11 +116,9 @@ public class ReporteNaturalService {
         }
         validarPipeline(pipeline);
 
-        // Filtro por NOMBRE de política → resolver a ids y anteponer un $match (confiable).
         String politicaNombre = stringDe(filtrosPost.get("politica_nombre"));
         if (politicaNombre != null && !politicaNombre.isBlank()) {
             List<String> ids = resolverPoliticaIds(politicaNombre);
-            // Si no matchea ninguna política, devolvemos vacío (el filtro no se cumple).
             pipeline.add(0, Map.of("$match", Map.of("politicaId", Map.of("$in", ids))));
         }
 
@@ -149,7 +134,6 @@ public class ReporteNaturalService {
 
         enriquecerNombres(filas, enriquecer);
 
-        // Filtro por NOMBRE de departamento (tras enriquecer, porque es derivado).
         String deptNombre = stringDe(filtrosPost.get("departamento_nombre"));
         if (deptNombre != null && !deptNombre.isBlank()) {
             String n = norm(deptNombre);
@@ -163,7 +147,6 @@ public class ReporteNaturalService {
         return new Resultado(collection, filas, queryStr);
     }
 
-    /** Resuelve clienteId/politicaId/nodoActualId a nombres legibles, en lote. */
     private void enriquecerNombres(List<Map<String, Object>> filas, List<String> enriquecer) {
         if (filas.isEmpty() || enriquecer == null || enriquecer.isEmpty()) return;
 
@@ -216,7 +199,6 @@ public class ReporteNaturalService {
         return out;
     }
 
-    /** nodoActualId → nombre del departamento (vía NodoDiagrama.departamentoId). */
     private Map<String, String> departamentoPorNodo(Set<String> nodoIds) {
         Map<String, String> out = new HashMap<>();
         if (nodoIds.isEmpty()) return out;
@@ -244,7 +226,6 @@ public class ReporteNaturalService {
                 .collect(Collectors.toList());
     }
 
-    // ── export genérico (cualquier conjunto de columnas) ───────────────────────
     private byte[] exportarExcel(List<Map<String, Object>> filas) {
         List<String> cols = columnasDe(filas);
         try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -311,7 +292,6 @@ public class ReporteNaturalService {
         return filas.isEmpty() ? List.of() : new ArrayList<>(filas.get(0).keySet());
     }
 
-    // ── validación / utilidades (igual que antes) ──────────────────────────────
     private void validarPipeline(List<Map<String, Object>> pipeline) {
         for (Map<String, Object> stage : pipeline) validarNodo(stage);
     }

@@ -14,7 +14,7 @@ public class AgenteResponse {
         private String label;
         private String ruta;
         private String tipo;
-        /** Dato extra para la acción (p.ej. el id de la política a iniciar). */
+
         private String dato;
     }
 }

@@ -9,10 +9,6 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 
-/**
- * Repositorio de auditoría — solo expone lecturas e {@code insert} (heredado).
- * El servicio nunca llama {@code save(...)} sobre un id existente ni {@code delete}.
- */
 @Repository
 public interface AuditoriaDocumentoRepository extends MongoRepository<AuditoriaDocumento, String> {
 

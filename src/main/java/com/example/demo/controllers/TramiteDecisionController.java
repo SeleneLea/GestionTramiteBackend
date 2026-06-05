@@ -21,8 +21,6 @@ public class TramiteDecisionController {
     @Autowired
     private TramiteDecisionService decisionService;
 
-    // "Reasignar" = pasar el trámite a otro funcionario del mismo nodo (no avanza).
-    // Se mantiene "/derivar" como alias por compatibilidad con clientes existentes.
     @PostMapping({"/reasignar", "/derivar"})
     @PreAuthorize("hasRole('FUNCIONARIO')")
     public ResponseEntity<Tramite> reasignarTramite(
@@ -43,7 +41,6 @@ public class TramiteDecisionController {
         return ResponseEntity.ok(t);
     }
 
-    // Decisión final en JSON (rechazo, o aprobación sin documento de resolución).
     @PostMapping(value = "/decision-final", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('FUNCIONARIO')")
     public ResponseEntity<Tramite> decisionFinal(
@@ -54,7 +51,6 @@ public class TramiteDecisionController {
         return ResponseEntity.ok(t);
     }
 
-    // Decisión final en multipart: permite adjuntar el documento de resolución al aprobar.
     @PostMapping(value = "/decision-final", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('FUNCIONARIO')")
     public ResponseEntity<Tramite> decisionFinalConResolucion(

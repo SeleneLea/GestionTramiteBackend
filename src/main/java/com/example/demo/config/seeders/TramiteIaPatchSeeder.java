@@ -14,18 +14,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Parte 2 — Patch sobre trámites existentes para poblar campos IA (CU-42/CU-43)
- * sin recrear la colección. Idempotente: solo escribe cuando el campo está vacío.
- *
- *  - {@code riesgoDemora}   ← derivado de prioridad + estado.
- *  - {@code probSuperarSla} ← coherente con el nivel asignado.
- *  - {@code rutaSugerida}   ← lista de nodos del diagrama de su política
- *                             (la ruta canónica del flujo, sin reordenar).
- *
- * Estos valores son determinísticos a partir de los datos existentes; el
- * scheduler real (`PrediccionRiesgoScheduler`) los irá refinando con la IA.
- */
 @Component
 @Slf4j
 public class TramiteIaPatchSeeder {
@@ -45,8 +33,6 @@ public class TramiteIaPatchSeeder {
         for (Tramite t : tramites) {
             boolean cambio = false;
 
-            // Solo trámites activos reciben predicción de riesgo;
-            // los cerrados quedan con valores fijos (bajo + 0.1).
             boolean cerrado = EstadoTramite.esFinalizado(t.getEstadoActual());
 
             if (t.getRiesgoDemora() == null || t.getRiesgoDemora().isBlank()) {
@@ -73,7 +59,6 @@ public class TramiteIaPatchSeeder {
         log.info("[Seeder] TramiteIaPatch OK ({} trámites actualizados)", actualizados);
     }
 
-    /** prioridad 1 = baja, 2 = media, 3+ = alta (alineado con TramiteSeeder). */
     private String nivelPorPrioridad(Integer prioridad) {
         if (prioridad == null) return "desconocido";
         if (prioridad >= 3) return "alto";
@@ -91,7 +76,6 @@ public class TramiteIaPatchSeeder {
         }
     }
 
-    /** Ruta canónica = nodos del diagrama de la política, en orden natural. */
     private List<String> rutaCanonicaDeLaPolitica(String politicaId) {
         if (politicaId == null) return new ArrayList<>();
         var diagrama = diagramaRepo.findByPoliticaId(politicaId);

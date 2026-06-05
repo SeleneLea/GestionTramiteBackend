@@ -16,17 +16,14 @@ public class EstadoTramiteResponse {
     private String codigo;
     private String estadoActual;
 
-    // Info del nodo actual
     private String nodoActualId;
     private String nodoActualNombre;
     private String nodoActualTipo;
     private String departamentoActual;
 
-    // Para flujos paralelos
     private boolean enParalelo;
     private List<String> nodosParalellosActivos;
 
-    // Línea de tiempo
     private LocalDateTime fechaInicio;
     private LocalDateTime fechaEstimadaCierre;
     private int prioridad;
