@@ -83,6 +83,17 @@ public class S3StorageService {
         return Instant.now().plusSeconds(presignedTtlSeconds);
     }
 
+    public byte[] download(String key) {
+        S3Client cli = clienteRequerido();
+        return cli.getObjectAsBytes(GetObjectRequest.builder().bucket(bucket).key(key).build()).asByteArray();
+    }
+
+    public String contentType(String key) {
+        S3Client cli = clienteRequerido();
+        String ct = cli.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build()).contentType();
+        return ct != null ? ct : "application/octet-stream";
+    }
+
     public boolean exists(String key) {
         S3Client cli = clienteRequerido();
         try {
