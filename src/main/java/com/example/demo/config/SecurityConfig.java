@@ -57,7 +57,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/health/**").permitAll()
 
                 .requestMatchers("/ws/**").permitAll()
-                .requestMatchers("/api/usuarios/me").authenticated()
+                .requestMatchers("/api/usuarios/me", "/api/usuarios/me/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/usuarios/funcionarios").hasAnyRole("FUNCIONARIO", "ADMINISTRADOR")
                 .requestMatchers("/api/usuarios/**").hasRole("ADMINISTRADOR")
 
